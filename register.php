@@ -212,7 +212,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 class="rounded-lg border border-gray-300 focus:ring-2 focus:ring-primary focus:border-transparent"
                                 placeholder="16-1234567" oninput="formatPhoneNumber(this)">
                         </div>
-                        <p class="mt-1 text-xs text-gray-500" id="phone_format_hint">Format: +6016-1234567 (Malaysia)</p>
                     </div>
 
                     <div>
