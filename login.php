@@ -122,7 +122,6 @@ $roles = $roles_stmt->fetchAll(PDO::FETCH_COLUMN);
                                 class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-primary focus:border-transparent"
                                 placeholder="••••••••">
                             <button type="button" class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600" onclick="togglePassword('password')">
-                                <i class="ri-eye-line" id="password-eye"></i>
                             </button>
                         </div>
                     </div>
