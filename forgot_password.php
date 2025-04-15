@@ -5,17 +5,15 @@ session_start();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $phone = filter_input(INPUT_POST, 'phone', FILTER_SANITIZE_SPECIAL_CHARS);
-    $phone = preg_replace('/[^0-9-]/', '', $phone); // Keep only numbers and hyphens
-    // Validate local Malaysian format: 016-XXXXXXX
+    $phone = preg_replace('/[^0-9-]/', '', $phone); 
     if (!preg_match('/^01[0-9]-[0-9]{7,8}$/', $phone)) {
         $error = "Please enter a valid Malaysian phone number (e.g., 016-1234567).";
     } else {
-        // Convert to international format: +6016XXXXXXX
-        $phone_clean = str_replace('-', '', $phone); // Remove hyphen: 0161234567
-        $phone_international = '+6' . $phone_clean; // Add country code: +60161234567
+        $phone_clean = str_replace('-', '', $phone); 
+        $phone_international = '+6' . $phone_clean; 
 
         $stmt = $pdo->prepare("SELECT * FROM users WHERE phone = ?");
-        $stmt->execute([$phone]); // Store in local format in DB
+        $stmt->execute([$phone]); 
         $user = $stmt->fetch();
         if ($user) {
             $otp = str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
@@ -25,9 +23,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $message .= "Your OTP for password reset is: $otp\n";
                 $message .= "Valid for 10 minutes. Ignore if not requested.";
                 $encoded_message = urlencode($message);
-                // Use international format for WhatsApp link
                 $whatsapp_link = "https://wa.me/$phone_international?text=$encoded_message";
-                $_SESSION['reset_phone'] = $phone; // Store local format in session
+                $_SESSION['reset_phone'] = $phone;
                 $success = "OTP sent via WhatsApp. <a href='$whatsapp_link' target='_blank' class='text-green-600 underline'>Click here to send it</a>.<br>Then verify below.";
             } else {
                 $error = "Failed to generate OTP.";
@@ -111,18 +108,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Remove all non-digit characters except hyphens
             let value = input.value.replace(/[^0-9-]/g, '');
             
-            // Remove any existing hyphens to reformat
             value = value.replace(/-/g, '');
             
-            // Add hyphen after the first 3 digits if the length is at least 3
             if (value.length > 3) {
                 value = value.slice(0, 3) + '-' + value.slice(3);
             }
             
-            // Limit to 12 characters (e.g., 016-12345678)
             value = value.slice(0, 12);
-            
-            // Update the input field
             input.value = value;
         }
     </script>
