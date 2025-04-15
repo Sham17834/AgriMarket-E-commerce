@@ -1,6 +1,6 @@
 -- MySQL dump 10.13  Distrib 8.0.40, for Win64 (x86_64)
 --
--- Host: 127.0.0.1    Database: agrimarketdb
+-- Host: localhost    Database: agrimarketdb
 -- ------------------------------------------------------
 -- Server version	8.0.40
 
@@ -273,7 +273,7 @@ CREATE TABLE `products` (
 
 LOCK TABLES `products` WRITE;
 /*!40000 ALTER TABLE `products` DISABLE KEYS */;
-INSERT INTO `products` VALUES (1,3,'Organic Free-Range Eggs',5,'Certified organic eggs from pasture-raised hens',4.99,1.50,50,1,'Dozen',NULL,1,NULL,'2025-03-31 20:58:10',1,'[\"https://plus.unsplash.com/premium_photo-1676409351533-58b63e3cbce3?q=80&w=1974&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D\",\"https://public.readdy.ai/ai/img_res/eggs_organic_carton.jpg\"]','2025-03-30 10:59:24'),(2,5,'Whole Grain Wheat',6,'High-protein wheat for baking',2.49,0.30,200,1,'5kg bag',NULL,0,NULL,'2025-03-31 20:58:23',1,'[\"https://images.unsplash.com/photo-1537200275355-4f0c0714f777?q=80&w=2070&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D\"]','2025-03-30 10:59:24'),(3,4,'California Almonds',7,'Raw, unsalted almonds',8.99,2.00,75,1,'1kg bag',NULL,1,NULL,'2025-03-31 20:58:33',1,'[\"https://images.unsplash.com/photo-1602948750761-97ea79ee42ec?q=80&w=2080&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D\"]','2025-03-30 10:59:24'),(4,3,'Fresh Goat Milk',4,'Organic goat milk from free-range goats',5.99,1.00,30,1,'Gallon',NULL,1,NULL,'2025-03-31 20:58:41',1,'[\"https://plus.unsplash.com/premium_photo-1695166780662-b9b168dc65af?q=80&w=1976&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D\"]','2025-03-31 10:00:00'),(5,5,'Organic Cornmeal',6,'Stone-ground organic cornmeal',3.49,0.50,150,1,'2kg bag',NULL,1,NULL,'2025-03-31 20:58:56',1,'[\"https://plus.unsplash.com/premium_photo-1725635594762-ef1badbede67?q=80&w=2070&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D\"]','2025-03-31 10:00:00');
+INSERT INTO `products` VALUES (1,3,'Organic Free-Range Eggs',5,'Certified organic eggs from pasture-raised hens',12.00,9.60,50,1,'Dozen',NULL,1,NULL,'2025-04-11 22:38:56',1,'[\"https://plus.unsplash.com/premium_photo-1676409351533-58b63e3cbce3?q=80&w=1974&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D\",\"https://public.readdy.ai/ai/img_res/eggs_organic_carton.jpg\"]','2025-03-30 10:59:24'),(2,5,'Whole Grain Wheat',6,'High-protein wheat for baking',6.00,5.10,200,1,'5kg bag',NULL,0,NULL,'2025-04-11 22:38:56',1,'[\"https://images.unsplash.com/photo-1537200275355-4f0c0714f777?q=80&w=2070&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D\"]','2025-03-30 10:59:24'),(3,4,'California Almonds',7,'Raw, unsalted almonds',25.00,18.75,75,1,'1kg bag',NULL,1,NULL,'2025-04-11 22:38:56',1,'[\"https://images.unsplash.com/photo-1602948750761-97ea79ee42ec?q=80&w=2080&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D\"]','2025-03-30 10:59:24'),(4,3,'Fresh Goat Milk',4,'Organic goat milk from free-range goats',8.00,6.40,30,1,'Gallon',NULL,1,NULL,'2025-04-11 22:38:56',1,'[\"https://plus.unsplash.com/premium_photo-1695166780662-b9b168dc65af?q=80&w=1976&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D\"]','2025-03-31 10:00:00'),(5,5,'Organic Cornmeal',6,'Stone-ground organic cornmeal',5.00,4.50,150,1,'2kg bag',NULL,1,NULL,'2025-04-11 22:38:56',1,'[\"https://plus.unsplash.com/premium_photo-1725635594762-ef1badbede67?q=80&w=2070&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D\"]','2025-03-31 10:00:00');
 /*!40000 ALTER TABLE `products` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -317,10 +317,12 @@ CREATE TABLE `users` (
   `email` varchar(100) COLLATE utf8mb4_general_ci NOT NULL,
   `role` enum('admin','vendor','customer','staff') COLLATE utf8mb4_general_ci NOT NULL,
   `phone` varchar(15) COLLATE utf8mb4_general_ci DEFAULT NULL,
+  `reset_otp` varchar(6) COLLATE utf8mb4_general_ci DEFAULT NULL,
+  `otp_expiry` datetime DEFAULT NULL,
   PRIMARY KEY (`user_id`),
   UNIQUE KEY `username` (`username`),
   UNIQUE KEY `email` (`email`)
-) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=16 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -329,7 +331,7 @@ CREATE TABLE `users` (
 
 LOCK TABLES `users` WRITE;
 /*!40000 ALTER TABLE `users` DISABLE KEYS */;
-INSERT INTO `users` VALUES (1,'admin1','$2y$10$hashed_admin1','admin@agrimarket.test','admin','1234567890'),(2,'farmer_john','$2y$10$hashed_farmer1','john@greenfarms.test','vendor','1987654321'),(3,'customer_mary','$2y$10$hashed_customer1','mary@example.com','vendor','1555123456'),(4,'john_doe','$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','john@example.com','vendor','1234567890'),(5,'jane_smith','$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','jane@example.com','customer','2345678901'),(6,'mike_jones','$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','mike@example.com','customer','4567890123'),(7,'sarah_williams','$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','sarah@example.com','vendor','3456789012'),(8,'david_brown','$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','david@example.com','customer','5678901234'),(9,'emily_davis','$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','emily@example.com','customer','6789012345'),(10,'robert_wilson','$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','robert@example.com','customer','7890123456');
+INSERT INTO `users` VALUES (1,'admin1','$2y$10$hashed_admin1','admin@agrimarket.test','admin','016-1234567',NULL,NULL),(2,'farmer_john','$2y$10$hashed_farmer1','john@greenfarms.test','vendor','017-2345678',NULL,NULL),(3,'customer_mary','$2y$10$hashed_customer1','mary@example.com','vendor','012-3456789',NULL,NULL),(4,'john_doe','$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','john@example.com','vendor','013-4567890',NULL,NULL),(5,'jane_smith','$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','jane@example.com','customer','014-5678901',NULL,NULL),(6,'mike_jones','$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','mike@example.com','customer','015-6789012',NULL,NULL),(7,'sarah_williams','$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','sarah@example.com','vendor','018-7890123',NULL,NULL),(8,'david_brown','$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','david@example.com','customer','019-8901234',NULL,NULL),(9,'emily_davis','$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','emily@example.com','customer','011-9012345',NULL,NULL),(10,'robert_wilson','$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi','robert@example.com','customer','010-0123456',NULL,NULL),(14,'soon _yong','$2y$10$sumgF32AAjqXCV95S0yvQuQ3V2ZHn3a9ikbWn5wnmyOp4VSB5rf2S','yong178344@gmail.com','customer','016-7239840','416167','2025-04-15 20:07:43');
 /*!40000 ALTER TABLE `users` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -400,4 +402,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2025-04-01 18:24:16
+-- Dump completed on 2025-04-15 20:16:16
