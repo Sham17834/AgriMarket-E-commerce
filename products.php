@@ -644,20 +644,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_to_cart'])) {
                                     <p class="text-sm">Search results for: <span
                                             class="font-semibold">"<?php echo htmlspecialchars($search); ?>"</span></p>
                                 <?php endif; ?>
-                            </div>
-                            <!-- Active filters display -->
-                            <div class="flex flex-wrap items-center mt-2 md:mt-0">
-                                <?php if ($organic !== null): ?>
-                                    <span
-                                        class="inline-flex items-center bg-primary bg-opacity-10 text-primary text-xs px-3 py-1 rounded-full mr-2 mb-2">
-                                        <?php echo $organic ? 'Organic Only' : 'Standard Only'; ?>
-                                        <a href="?<?php echo http_build_query(array_merge($_GET, ['organic' => ''])); ?>"
-                                            class="ml-1">
-                                            <i class="ri-close-line"></i>
-                                        </a>
-                                    </span>
-                                <?php endif; ?>
-                            </div>
+                            </div>               
                         </div>
 
                         <div class="product-grid grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
