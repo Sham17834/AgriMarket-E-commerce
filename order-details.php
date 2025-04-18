@@ -53,10 +53,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cancel_order'])) {
                 $stmt = $pdo->prepare("UPDATE orders SET order_status = 'cancelled' WHERE order_id = :order_id");
                 $stmt->bindParam(':order_id', $order_id, PDO::PARAM_INT);
                 $stmt->execute();
-                header("Location: /order_details.php?id=$order_id&success=Order cancelled successfully");
+                
+                // Redirect back to same page with success message
+                header("Location: " . $_SERVER['PHP_SELF'] . "?id=$order_id&success=1");
                 exit;
             } else {
-                header("Location: /order_details.php?id=$order_id&error=Order cannot be cancelled in its current status");
+                header("Location: " . $_SERVER['PHP_SELF'] . "?id=$order_id&error=Order cannot be cancelled in its current status");
                 exit;
             }
         } else {
@@ -65,7 +67,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cancel_order'])) {
         }
     } catch (PDOException $e) {
         error_log("Error cancelling order: " . $e->getMessage());
-        header("Location: /order_details.php?id=$order_id&error=Failed to cancel order");
+        header("Location: " . $_SERVER['PHP_SELF'] . "?id=$order_id&error=Failed to cancel order");
         exit;
     }
 }
@@ -148,9 +150,79 @@ try {
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700&family=Open+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/remixicon/4.6.0/remixicon.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        /* Modal styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+        .modal-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+        .modal-content {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 0.5rem;
+            width: 90%;
+            max-width: 400px;
+            text-align: center;
+            transform: translateY(20px);
+            transition: transform 0.3s ease;
+        }
+        .modal-overlay.active .modal-content {
+            transform: translateY(0);
+        }
+        .animate-spin {
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+    </style>
 </head>
 <body class="bg-gray-50 min-h-screen font-body flex flex-col">
+    <!-- Success Modal -->
+    <div id="successModal" class="modal-overlay <?php echo isset($_GET['success']) ? 'active' : ''; ?>">
+        <div class="modal-content">
+            <div class="text-center">
+                <i class="ri-checkbox-circle-fill text-5xl text-green-500 mb-4"></i>
+                <h3 class="text-xl font-semibold mb-2">Order Cancelled</h3>
+                <p class="text-gray-600 mb-6">Your order has been successfully cancelled.</p>
+                <button onclick="closeSuccessModal()" class="bg-primary text-white px-6 py-2 rounded-lg hover:bg-primary-dark transition-colors">
+                    Continue
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Error Modal -->
+    <div id="errorModal" class="modal-overlay <?php echo isset($_GET['error']) ? 'active' : ''; ?>">
+        <div class="modal-content">
+            <div class="text-center">
+                <i class="ri-close-circle-fill text-5xl text-red-500 mb-4"></i>
+                <h3 class="text-xl font-semibold mb-2">Error</h3>
+                <p class="text-gray-600 mb-6"><?php echo isset($_GET['error']) ? htmlspecialchars($_GET['error']) : ''; ?></p>
+                <button onclick="closeErrorModal()" class="bg-primary text-white px-6 py-2 rounded-lg hover:bg-primary-dark transition-colors">
+                    OK
+                </button>
+            </div>
+        </div>
+    </div>
+
     <header class="fixed top-0 left-0 right-0 bg-white shadow-md z-50">
         <div class="max-w-7xl mx-auto px-4">
             <div class="flex items-center justify-between h-20">
@@ -207,18 +279,6 @@ try {
     <main class="pt-28 pb-16 flex-1">
         <div class="max-w-6xl mx-auto px-4">
             <div class="bg-white rounded-xl shadow-sm p-6">
-                <!-- Notification -->
-                <?php if (isset($_GET['success'])): ?>
-                    <div class="bg-green-100 border-l-4 border-green-500 text-green-700 p-4 mb-6 rounded-r-lg">
-                        <?php echo htmlspecialchars($_GET['success']); ?>
-                    </div>
-                <?php endif; ?>
-                <?php if (isset($_GET['error'])): ?>
-                    <div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-6 rounded-r-lg">
-                        <?php echo htmlspecialchars($_GET['error']); ?>
-                    </div>
-                <?php endif; ?>
-
                 <!-- Order Summary Header -->
                 <div class="mb-8">
                     <div class="flex flex-col md:flex-row justify-between items-start md:items-center">
@@ -249,9 +309,9 @@ try {
                                 <?php echo htmlspecialchars(ucfirst($order['order_status'])); ?>
                             </span>
                             <?php if (in_array(strtolower($order['order_status']), ['pending', 'processing'])): ?>
-                                <form method="POST" onsubmit="return confirm('Are you sure you want to cancel this order?');">
+                                <form method="POST" id="cancelForm" onsubmit="return confirmCancel()">
                                     <input type="hidden" name="cancel_order" value="1">
-                                    <button type="submit" class="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 font-medium transition-colors">
+                                    <button type="submit" class="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 font-medium transition-colors" id="cancelButton">
                                         Cancel Order
                                     </button>
                                 </form>
@@ -496,6 +556,38 @@ try {
             </div>
         </div>
     </footer>
-    <script src="/script.js"></script>
+
+    <script>
+        // Modal handling
+        function closeSuccessModal() {
+            document.getElementById('successModal').classList.remove('active');
+            window.location.href = window.location.pathname + '?id=' + new URLSearchParams(window.location.search).get('id');
+        }
+
+        function closeErrorModal() {
+            document.getElementById('errorModal').classList.remove('active');
+            window.location.href = window.location.pathname + '?id=' + new URLSearchParams(window.location.search).get('id');
+        }
+
+        // Cancel order confirmation
+        function confirmCancel() {
+            return confirm('Are you sure you want to cancel this order?');
+        }
+
+        // Loading spinner for cancel button
+        document.getElementById('cancelForm')?.addEventListener('submit', function() {
+            const button = document.getElementById('cancelButton');
+            if (button) {
+                button.innerHTML = '<i class="ri-loader-4-line animate-spin mr-2"></i> Processing...';
+                button.disabled = true;
+            }
+        });
+
+        // Mobile search toggle
+        document.getElementById('mobile-search-toggle')?.addEventListener('click', function() {
+            const form = document.getElementById('mobile-search-form');
+            form.classList.toggle('hidden');
+        });
+    </script>
 </body>
 </html>

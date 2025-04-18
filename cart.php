@@ -35,7 +35,221 @@ if (!isset($_SESSION['selected_shipping'])) {
     $_SESSION['selected_shipping'] = 'standard';
 }
 
-// Update selected shipping method from form submission
+// Initialize cart variables
+$cart_id = null;
+$cart_data = [];
+// Fetch cart if it exists (do NOT create a cart yet)
+try {
+    $stmt = $pdo->prepare("SELECT cart_id, cart_data FROM shopping_carts WHERE customer_id = :customer_id");
+    $stmt->bindParam(':customer_id', $customer_id, PDO::PARAM_INT);
+    $stmt->execute();
+    $cart = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if ($cart) {
+        $cart_id = $cart['cart_id'];
+        $cart_data = json_decode($cart['cart_data'], true);
+        
+        // If JSON is invalid, log error and reset cart_data to empty array
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            error_log("Cart JSON decode error for user $customer_id: " . json_last_error_msg());
+            $cart_data = [];
+            // Update the database to fix the invalid JSON
+            $encoded_cart_data = json_encode($cart_data);
+            $stmt = $pdo->prepare("UPDATE shopping_carts SET cart_data = :cart_data, updated_at = NOW() WHERE cart_id = :cart_id");
+            $stmt->bindParam(':cart_data', $encoded_cart_data, PDO::PARAM_STR);
+            $stmt->bindParam(':cart_id', $cart_id, PDO::PARAM_INT);
+            $stmt->execute();
+        }
+    }
+} catch (PDOException $e) {
+    error_log("Database error in cart: " . $e->getMessage());
+    $error = "Error accessing your cart. Please try again.";
+}
+
+// Helper function to create a new cart
+function createNewCart($pdo, $customer_id) {
+    $cart_data = [];
+    $encoded_cart_data = json_encode($cart_data);
+    $stmt = $pdo->prepare("INSERT INTO shopping_carts (customer_id, cart_data) VALUES (:customer_id, :cart_data)");
+    $stmt->bindParam(':customer_id', $customer_id, PDO::PARAM_INT);
+    $stmt->bindParam(':cart_data', $encoded_cart_data, PDO::PARAM_STR);
+    $stmt->execute();
+    return $pdo->lastInsertId();
+}
+
+// Handle Add to Cart action
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_to_cart'])) {
+    $product_id = (int)$_POST['product_id'];
+    $quantity = isset($_POST['quantity']) ? (int)$_POST['quantity'] : 1;
+
+    try {
+        // Check if product exists and is active
+        $stmt = $pdo->prepare("SELECT stock_quantity, minimum_order_quantity, is_active FROM products WHERE product_id = :id");
+        $stmt->bindParam(':id', $product_id, PDO::PARAM_INT);
+        $stmt->execute();
+        $product = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($product && $product['is_active']) {
+            $stock_quantity = $product['stock_quantity'];
+            $minimum_order_quantity = $product['minimum_order_quantity'];
+            
+            // Validate quantity
+            if ($quantity < $minimum_order_quantity) {
+                $error = "Minimum order quantity is $minimum_order_quantity for this product.";
+            } elseif ($quantity > $stock_quantity) {
+                $error = "Only $stock_quantity items available in stock.";
+            } else {
+                // If no cart exists, create one
+                if (!$cart_id) {
+                    $cart_data = []; // Initialize empty cart
+                    $encoded_cart_data = json_encode($cart_data);
+                    $stmt = $pdo->prepare("INSERT INTO shopping_carts (customer_id, cart_data) VALUES (:customer_id, :cart_data)");
+                    $stmt->bindParam(':customer_id', $customer_id, PDO::PARAM_INT);
+                    $stmt->bindParam(':cart_data', $encoded_cart_data, PDO::PARAM_STR);
+                    $stmt->execute();
+                    $cart_id = $pdo->lastInsertId();
+                }
+
+                // Update cart_data
+                $found = false;
+                foreach ($cart_data as &$item) {
+                    if (isset($item['product_id']) && $item['product_id'] === $product_id) {
+                        $new_quantity = $item['quantity'] + $quantity;
+                        if ($new_quantity > $stock_quantity) {
+                            $error = "Cannot add more than available stock ($stock_quantity).";
+                            break;
+                        }
+                        $item['quantity'] = $new_quantity;
+                        $found = true;
+                        break;
+                    }
+                }
+
+                if (!$found && !isset($error)) {
+                    $cart_data[] = ['product_id' => $product_id, 'quantity' => $quantity];
+                }
+                
+                if (!isset($error)) {
+                    $encoded_cart_data = json_encode($cart_data);
+                    $stmt = $pdo->prepare("UPDATE shopping_carts SET cart_data = :cart_data, updated_at = NOW() WHERE cart_id = :cart_id");
+                    $stmt->bindParam(':cart_data', $encoded_cart_data, PDO::PARAM_STR);
+                    $stmt->bindParam(':cart_id', $cart_id, PDO::PARAM_INT);
+                    $stmt->execute();
+                    
+                    $_SESSION['success'] = "Product added to cart successfully!";
+                    header("Location: cart.php");
+                    exit();
+                }
+            }
+        } else {
+            $error = "Product not available.";
+        }
+    } catch (PDOException $e) {
+        $error = "Error adding to cart: " . $e->getMessage();
+    }
+}
+
+// Handle Clear Cart action
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['clear_cart'])) {
+    if ($cart_id) { // Only attempt to clear if a cart exists
+        try {
+            $empty_cart_data = '[]';
+            $stmt = $pdo->prepare("UPDATE shopping_carts SET cart_data = :cart_data, updated_at = NOW() WHERE cart_id = :cart_id");
+            $stmt->bindParam(':cart_data', $empty_cart_data, PDO::PARAM_STR);
+            $stmt->bindParam(':cart_id', $cart_id, PDO::PARAM_INT);
+            $stmt->execute();
+
+            $success = "Cart cleared successfully!";
+            $cart_data = [];
+        } catch (PDOException $e) {
+            $error = "Error clearing cart: " . $e->getMessage();
+        }
+    }
+}
+
+// Handle Update Quantity action
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_quantity'])) {
+    $product_id = (int)$_POST['product_id'];
+    $quantity = (int)$_POST['quantity'];
+
+    if (!$cart_id) {
+        $error = "No cart exists to update.";
+    } else {
+        try {
+            $stmt = $pdo->prepare("SELECT stock_quantity, minimum_order_quantity, is_active FROM products WHERE product_id = :id");
+            $stmt->bindParam(':id', $product_id, PDO::PARAM_INT);
+            $stmt->execute();
+            $product = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if ($product && $product['is_active']) {
+                $stock_quantity = $product['stock_quantity'];
+                $minimum_order_quantity = $product['minimum_order_quantity'];
+
+                if ($quantity < $minimum_order_quantity) {
+                    $error = "Quantity for product ID $product_id must be at least $minimum_order_quantity.";
+                } elseif ($quantity > $stock_quantity) {
+                    $error = "Quantity for product ID $product_id exceeds available stock ($stock_quantity).";
+                } elseif ($quantity <= 0) {
+                    $error = "Quantity must be greater than 0.";
+                } else {
+                    // Update quantity in cart_data
+                    $found = false;
+                    foreach ($cart_data as &$item) {
+                        if (isset($item['product_id']) && $item['product_id'] === $product_id) {
+                            $item['quantity'] = $quantity;
+                            $found = true;
+                            break;
+                        }
+                    }
+                    if (!$found) {
+                        $error = "Product ID $product_id not found in cart.";
+                    } else {
+                        // Save updated cart_data
+                        $encoded_cart_data = json_encode($cart_data);
+                        $stmt = $pdo->prepare("UPDATE shopping_carts SET cart_data = :cart_data, updated_at = NOW() WHERE cart_id = :cart_id");
+                        $stmt->bindParam(':cart_data', $encoded_cart_data, PDO::PARAM_STR);
+                        $stmt->bindParam(':cart_id', $cart_id, PDO::PARAM_INT);
+                        $stmt->execute();
+
+                        $success = "Quantity updated successfully!";
+                    }
+                }
+            } else {
+                $error = "Product ID $product_id is not available.";
+            }
+        } catch (PDOException $e) {
+            $error = "Error updating quantity: " . $e->getMessage();
+        }
+    }
+}
+
+// Handle Remove Item action
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['remove_item'])) {
+    $product_id = (int)$_POST['product_id'];
+
+    if (!$cart_id) {
+        $error = "No cart exists to remove items from.";
+    } else {
+        try {
+            $cart_data = array_filter($cart_data, function($item) use ($product_id) {
+                return !isset($item['product_id']) || $item['product_id'] !== $product_id;
+            });
+            $cart_data = array_values($cart_data);
+
+            $encoded_cart_data = json_encode($cart_data);
+            $stmt = $pdo->prepare("UPDATE shopping_carts SET cart_data = :cart_data, updated_at = NOW() WHERE cart_id = :cart_id");
+            $stmt->bindParam(':cart_data', $encoded_cart_data, PDO::PARAM_STR);
+            $stmt->bindParam(':cart_id', $cart_id, PDO::PARAM_INT);
+            $stmt->execute();
+
+            $success = "Item removed from cart successfully!";
+        } catch (PDOException $e) {
+            $error = "Error removing item: " . $e->getMessage();
+        }
+    }
+}
+
+// Handle Shipping Method Update
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['shipping_method'])) {
     $new_shipping_method = $_POST['shipping_method'] ?? 'standard';
     if (array_key_exists($new_shipping_method, $shipping_options)) {
@@ -48,172 +262,53 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['shipping_method'])) {
 // Get the selected shipping method from session
 $selected_shipping = $_SESSION['selected_shipping'];
 
-// Check if the user has a cart, create one if not
-try {
-    $stmt = $pdo->prepare("SELECT cart_id, cart_data FROM shopping_carts WHERE customer_id = :customer_id");
-    $stmt->bindParam(':customer_id', $customer_id, PDO::PARAM_INT);
-    $stmt->execute();
-    $cart = $stmt->fetch(PDO::FETCH_ASSOC);
-
-    if (!$cart) {
-        // Create a new cart with cart_data as '[]'
-        $empty_cart_data = '[]';
-        $stmt = $pdo->prepare("INSERT INTO shopping_carts (customer_id, cart_data, created_at, updated_at) VALUES (:customer_id, :cart_data, NOW(), NOW())");
-        $stmt->bindParam(':customer_id', $customer_id, PDO::PARAM_INT);
-        $stmt->bindParam(':cart_data', $empty_cart_data, PDO::PARAM_STR);
-        $stmt->execute();
-        $cart_id = $pdo->lastInsertId();
-        $cart_data = [];
-    } else {
-        $cart_id = $cart['cart_id'];
-        // Handle NULL cart_data
-        if (is_null($cart['cart_data'])) {
-            $cart_data = [];
-            // Update the cart_data to '[]' to avoid future NULL checks
-            $empty_cart_data = '[]';
-            $stmt = $pdo->prepare("UPDATE shopping_carts SET cart_data = :cart_data, updated_at = NOW() WHERE cart_id = :cart_id");
-            $stmt->bindParam(':cart_data', $empty_cart_data, PDO::PARAM_STR);
-            $stmt->bindParam(':cart_id', $cart_id, PDO::PARAM_INT);
-            $stmt->execute();
-        } else {
-            $cart_data = json_decode($cart['cart_data'], true);
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                $cart_data = [];
-                $error = "Error decoding cart data.";
-            }
-        }
-    }
-} catch (PDOException $e) {
-    $error = "Error accessing cart: " . $e->getMessage();
-}
-
-// Handle Clear Cart action
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['clear_cart'])) {
-    try {
-        $cart_data = [];
-        $empty_cart_data = '[]';
-        $stmt = $pdo->prepare("UPDATE shopping_carts SET cart_data = :cart_data, updated_at = NOW() WHERE cart_id = :cart_id");
-        $stmt->bindParam(':cart_data', $empty_cart_data, PDO::PARAM_STR);
-        $stmt->bindParam(':cart_id', $cart_id, PDO::PARAM_INT);
-        $stmt->execute();
-
-        $success = "Cart cleared successfully!";
-    } catch (PDOException $e) {
-        $error = "Error clearing cart: " . $e->getMessage();
-    }
-}
-
-// Handle Update Quantity action
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_quantity'])) {
-    $product_id = (int)$_POST['product_id'];
-    $quantity = (int)$_POST['quantity'];
-
-    try {
-        $stmt = $pdo->prepare("SELECT stock_quantity, minimum_order_quantity, is_active FROM products WHERE product_id = :id");
-        $stmt->bindParam(':id', $product_id, PDO::PARAM_INT);
-        $stmt->execute();
-        $product = $stmt->fetch(PDO::FETCH_ASSOC);
-
-        if ($product && $product['is_active']) {
-            $stock_quantity = $product['stock_quantity'];
-            $minimum_order_quantity = $product['minimum_order_quantity'];
-
-            if ($quantity < $minimum_order_quantity) {
-                $error = "Quantity for product ID $product_id must be at least $minimum_order_quantity.";
-            } elseif ($quantity > $stock_quantity) {
-                $error = "Quantity for product ID $product_id exceeds available stock ($stock_quantity).";
-            } elseif ($quantity <= 0) {
-                $error = "Quantity must be greater than 0.";
-            } else {
-                // Update quantity in cart_data
-                $found = false;
-                foreach ($cart_data as &$item) {
-                    if ($item['product_id'] === $product_id) {
-                        $item['quantity'] = $quantity;
-                        $found = true;
-                        break;
-                    }
-                }
-                if (!$found) {
-                    $error = "Product ID $product_id not found in cart.";
-                } else {
-                    // Save updated cart_data
-                    $stmt = $pdo->prepare("UPDATE shopping_carts SET cart_data = :cart_data, updated_at = NOW() WHERE cart_id = :cart_id");
-                    $encoded_cart_data = json_encode($cart_data);
-                    $stmt->bindParam(':cart_data', $encoded_cart_data, PDO::PARAM_STR);
-                    $stmt->bindParam(':cart_id', $cart_id, PDO::PARAM_INT);
-                    $stmt->execute();
-
-                    $success = "Quantity updated successfully!";
-                }
-            }
-        } else {
-            $error = "Product ID $product_id is not available.";
-        }
-    } catch (PDOException $e) {
-        $error = "Error updating quantity: " . $e->getMessage();
-    }
-}
-
-// Handle Remove Item action
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['remove_item'])) {
-    $product_id = (int)$_POST['product_id'];
-
-    try {
-        $cart_data = array_filter($cart_data, function($item) use ($product_id) {
-            return $item['product_id'] !== $product_id;
-        });
-        $cart_data = array_values($cart_data); 
-
-        $stmt = $pdo->prepare("UPDATE shopping_carts SET cart_data = :cart_data, updated_at = NOW() WHERE cart_id = :cart_id");
-        $encoded_cart_data = json_encode($cart_data);
-        $stmt->bindParam(':cart_data', $encoded_cart_data, PDO::PARAM_STR);
-        $stmt->bindParam(':cart_id', $cart_id, PDO::PARAM_INT);
-        $stmt->execute();
-
-        $success = "Item removed from cart successfully!";
-    } catch (PDOException $e) {
-        $error = "Error removing item: " . $e->getMessage();
-    }
-}
-
 // Fetch cart items with product details
 $cart_items = [];
 $subtotal = 0;
 if (!empty($cart_data)) {
-    $product_ids = array_column($cart_data, 'product_id');
-    $placeholders = implode(',', array_fill(0, count($product_ids), '?'));
-    try {
-        $stmt = $pdo->prepare("SELECT product_id, name, price, discounted_price, stock_quantity, minimum_order_quantity, image_url 
-                               FROM products 
-                               WHERE product_id IN ($placeholders) AND is_active = 1");
-        $stmt->execute($product_ids);
-        $products = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $product_ids = [];
+    foreach ($cart_data as $item) {
+        if (isset($item['product_id'])) {
+            $product_ids[] = $item['product_id'];
+        }
+    }
+    if (!empty($product_ids)) {
+        $placeholders = implode(',', array_fill(0, count($product_ids), '?'));
+        try {
+            $stmt = $pdo->prepare("SELECT product_id, name, price, discounted_price, stock_quantity, minimum_order_quantity, image_url 
+                                   FROM products 
+                                   WHERE product_id IN ($placeholders) AND is_active = 1");
+            $stmt->execute($product_ids);
+            $products = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        foreach ($cart_data as $cart_item) {
-            foreach ($products as $product) {
-                if ($product['product_id'] == $cart_item['product_id']) {
-                    $price = !is_null($product['discounted_price']) && $product['discounted_price'] < $product['price'] 
-                             ? $product['discounted_price'] 
-                             : $product['price'];
-                    $item_subtotal = $price * $cart_item['quantity'];
-                    $subtotal += $item_subtotal;
-                    $cart_items[] = [
-                        'product_id' => $product['product_id'],
-                        'name' => $product['name'],
-                        'price' => $price,
-                        'quantity' => $cart_item['quantity'],
-                        'subtotal' => $item_subtotal,
-                        'stock_quantity' => $product['stock_quantity'],
-                        'minimum_order_quantity' => $product['minimum_order_quantity'],
-                        'image_url' => json_decode($product['image_url'], true)[0] ?? 'https://public.readdy.ai/api/placeholder/500/500'
-                    ];
-                    break;
+            foreach ($cart_data as $cart_item) {
+                if (!isset($cart_item['product_id'])) {
+                    continue; // Skip invalid cart items
+                }
+                foreach ($products as $product) {
+                    if ($product['product_id'] == $cart_item['product_id']) {
+                        $price = !is_null($product['discounted_price']) && $product['discounted_price'] < $product['price'] 
+                                 ? $product['discounted_price'] 
+                                 : $product['price'];
+                        $item_subtotal = $price * $cart_item['quantity'];
+                        $subtotal += $item_subtotal;
+                        $cart_items[] = [
+                            'product_id' => $product['product_id'],
+                            'name' => $product['name'],
+                            'price' => $price,
+                            'quantity' => $cart_item['quantity'],
+                            'subtotal' => $item_subtotal,
+                            'stock_quantity' => $product['stock_quantity'],
+                            'minimum_order_quantity' => $product['minimum_order_quantity'],
+                            'image_url' => json_decode($product['image_url'], true)[0] ?? 'https://public.readdy.ai/api/placeholder/500/500'
+                        ];
+                        break;
+                    }
                 }
             }
+        } catch (PDOException $e) {
+            $error = "Error fetching cart items: " . $e->getMessage();
         }
-    } catch (PDOException $e) {
-        $error = "Error fetching cart items: " . $e->getMessage();
     }
 }
 
@@ -328,7 +423,7 @@ $cart_count = array_sum(array_column($cart_items, 'quantity'));
                     <nav class="hidden lg:flex space-x-8">
                         <a href="index.php" class="text-gray-700 hover:text-primary font-medium">Home</a>
                         <a href="products.php" class="text-gray-700 hover:text-primary font-medium">Products</a>
-                        <a href="categories.php" class="text-gray-700 hover:text-primary font-medium">Categories</a>
+                        <a href="categories.php" class "text-gray-700 hover:text-primary font-medium">Categories</a>
                         <a href="farmers.php" class="text-gray-700 hover:text-primary font-medium">Meet Our Farmers</a>
                         <a href="about.php" class="text-gray-700 hover:text-primary font-medium">About Us</a>
                     </nav>

@@ -186,7 +186,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <button type="button"
                                 class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
                                 onclick="togglePassword('password')">
-                                <i id="password-eye" class="ri-eye-line"></i>
                             </button>
                         </div>
                         <div class="flex items-center mt-2 space-x-2">
@@ -205,7 +204,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <button type="button"
                                 class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
                                 onclick="togglePassword('confirm_password')">
-                                <i id="confirm_password-eye" class="ri-eye-line"></i>
                             </button>
                         </div>
                     </div>

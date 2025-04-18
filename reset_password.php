@@ -73,16 +73,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <label for="password" class="block text-sm text-gray-700">New Password</label>
                         <input type="password" id="password" name="password" required
                                class="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-green-500"
-                               placeholder="********">
+                               onclick="togglePassword('password')" placeholder="********">
                     </div>
                     <div>
                         <label for="confirm_password" class="block text-sm text-gray-700">Confirm Password</label>
                         <input type="password" id="confirm_password" name="confirm_password" required
                                class="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-green-500"
-                               placeholder="********">
+                               onclick="togglePassword('confirm_password')" placeholder="********">
                     </div>
                     <button type="submit"
-                            class="w-full bg-green-600 text-white py-2 rounded hover:bg-green-700">
+                            class="w-full bg-green-600 text-white py-2 rounded hover:bg-green-700" >
                         Reset Password
                     </button>
                 </form>

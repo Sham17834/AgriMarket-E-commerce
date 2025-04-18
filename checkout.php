@@ -1,5 +1,4 @@
 <?php
-ob_start();
 session_start();
 $isLoggedIn = isset($_SESSION['user_id']);
 require_once 'db_connect.php';
@@ -12,28 +11,47 @@ if (!$isLoggedIn) {
 
 $customer_id = $_SESSION['user_id'];
 
+// Enable error logging
+ini_set('display_errors', 0);
+ini_set('log_errors', 1);
+ini_set('error_log', __DIR__ . '/error_log.txt');
+
+// Get selected shipping method from session
+if (!isset($_SESSION['selected_shipping'])) {
+    $_SESSION['selected_shipping'] = 'standard';
+}
+$selected_shipping = $_SESSION['selected_shipping'];
+
 // Shipping options
 $shipping_options = [
-    'standard' => [
-        'name' => 'Standard Shipping',
-        'price' => 5.99,
-        'days' => '3-5 business days'
-    ],
-    'express' => [
-        'name' => 'Express Shipping',
-        'price' => 12.99,
-        'days' => '1-2 business days'
-    ],
-    'pickup' => [
-        'name' => 'Store Pickup',
-        'price' => 0.00,
-        'days' => 'Ready in 1 hour'
-    ]
+    'standard' => ['name' => 'Standard Shipping', 'price' => 5.99, 'days' => '3-5 business days'],
+    'express' => ['name' => 'Express Shipping', 'price' => 12.99, 'days' => '1-2 business days'],
+    'pickup' => ['name' => 'Store Pickup', 'price' => 0.00, 'days' => 'Ready in 1 hour']
 ];
 
-// Get the selected shipping method from session
-$selected_shipping = $_SESSION['selected_shipping'] ?? 'standard';
-$shipping_cost = $shipping_options[$selected_shipping]['price'];
+// Fetch user information from database
+try {
+    $stmt = $pdo->prepare("SELECT * FROM users WHERE user_id = :user_id");
+    $stmt->bindParam(':user_id', $customer_id, PDO::PARAM_INT);
+    $stmt->execute();
+    $user = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$user) {
+        throw new Exception("User not found.");
+    }
+} catch (Exception $e) {
+    error_log("Error fetching user data: " . $e->getMessage());
+    $error = "Error loading user data. Please try again.";
+}
+
+// Initialize form values from user data
+$first_name = $user['first_name'] ?? '';
+$last_name = $user['last_name'] ?? '';
+$email = $user['email'] ?? '';
+$phone = $user['phone'] ?? '';
+$shipping_address = '';
+$shipping_city = '';
+$shipping_state = '';
+$shipping_postal_code = '';
 
 // Fetch cart data
 try {
@@ -43,402 +61,285 @@ try {
     $cart = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if (!$cart || empty($cart['cart_data'])) {
-        $cart_data = [];
-        $error = "Your cart is empty. Please add items to your cart before checking out.";
-    } else {
-        $cart_data = json_decode($cart['cart_data'], true);
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            $cart_data = [];
-            $error = "Error decoding cart data.";
-        }
-        $cart_id = $cart['cart_id'];
+        header("Location: cart.php?error=Empty+cart");
+        exit();
+    }
+
+    $cart_data = json_decode($cart['cart_data'], true);
+    if (json_last_error() !== JSON_ERROR_NONE || empty($cart_data)) {
+        error_log("Invalid cart data JSON: " . json_last_error_msg());
+        header("Location: cart.php?error=Invalid+cart+data");
+        exit();
     }
 } catch (PDOException $e) {
-    $error = "Error accessing cart: " . $e->getMessage();
-    $cart_data = [];
+    error_log("Error accessing cart: " . $e->getMessage());
+    header("Location: cart.php?error=Cart+access+failed");
+    exit();
 }
 
-// Fetch cart items with product details
-$cart_items = [];
-$subtotal = 0;
-if (!empty($cart_data)) {
-    $product_ids = array_column($cart_data, 'product_id');
-    if (empty($product_ids)) {
-        $error = "Cart contains no valid product IDs.";
-        $cart_items = [];
-        $subtotal = 0;
-    } else {
-        $placeholders = implode(',', array_fill(0, count($product_ids), '?'));
+// Process form submission
+$show_success_modal = false;
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
+    // Validate form data
+    $validation_errors = [];
+
+    // Required fields validation
+    $required_fields = [
+        'first_name' => 'First Name',
+        'last_name' => 'Last Name',
+        'email' => 'Email',
+        'phone' => 'Phone',
+        'shipping_address' => 'Shipping Address',
+        'shipping_city' => 'City',
+        'shipping_state' => 'State',
+        'shipping_postal_code' => 'Postal Code',
+        'payment_method' => 'Payment Method'
+    ];
+
+    foreach ($required_fields as $field => $label) {
+        if (empty($_POST[$field])) {
+            $validation_errors[] = "$label is required.";
+        }
+    }
+
+    // Email validation
+    if (!empty($_POST['email']) && !filter_var($_POST['email'], FILTER_VALIDATE_EMAIL)) {
+        $validation_errors[] = "Please enter a valid email address.";
+    }
+
+    // Phone validation
+    if (!empty($_POST['phone']) && !preg_match('/^\d{10,12}$/', preg_replace('/[^0-9]/', '', $_POST['phone']))) {
+        $validation_errors[] = "Please enter a valid phone number.";
+    }
+
+    // Payment method validation
+    $valid_payment_methods = ['credit_card', 'bank_transfer', 'mobile_payment', 'cod'];
+    if (!in_array($_POST['payment_method'], $valid_payment_methods)) {
+        $validation_errors[] = "Please select a valid payment method.";
+    }
+
+    // Credit card validation
+    if ($_POST['payment_method'] === 'credit_card') {
+        $cc_required_fields = [
+            'card_number' => 'Card Number',
+            'card_expiry' => 'Expiry Date',
+            'card_cvv' => 'CVV',
+            'card_holder' => 'Card Holder Name'
+        ];
+
+        foreach ($cc_required_fields as $field => $label) {
+            if (empty($_POST[$field])) {
+                $validation_errors[] = "$label is required.";
+            }
+        }
+
+        if (!empty($_POST['card_number']) && !preg_match('/^\d{16}$/', preg_replace('/\s+/', '', $_POST['card_number']))) {
+            $validation_errors[] = "Please enter a valid card number.";
+        }
+
+        if (!empty($_POST['card_expiry']) && !preg_match('/^(0[1-9]|1[0-2])\/([0-9]{2})$/', $_POST['card_expiry'])) {
+            $validation_errors[] = "Please enter expiry date in MM/YY format.";
+        }
+
+        if (!empty($_POST['card_cvv']) && !preg_match('/^\d{3,4}$/', $_POST['card_cvv'])) {
+            $validation_errors[] = "Please enter a valid CVV.";
+        }
+    }
+
+    // If validation passes, create order
+    if (empty($validation_errors)) {
         try {
-            $stmt = $pdo->prepare("SELECT product_id, name, price, discounted_price, stock_quantity, minimum_order_quantity, image_url 
+            // Start transaction
+            $pdo->beginTransaction();
+
+            // Validate cart items against products
+            $cart_items = [];
+            $subtotal = 0;
+            $product_ids = array_column($cart_data, 'product_id');
+            if (empty($product_ids)) {
+                throw new Exception("No products in cart.");
+            }
+
+            $placeholders = implode(',', array_fill(0, count($product_ids), '?'));
+            $stmt = $pdo->prepare("SELECT product_id, name, price, discounted_price, stock_quantity 
                                    FROM products 
                                    WHERE product_id IN ($placeholders) AND is_active = 1");
             $stmt->execute($product_ids);
             $products = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            $valid_product_ids = array_column($products, 'product_id');
             foreach ($cart_data as $cart_item) {
-                $found = false;
+                if (!in_array($cart_item['product_id'], $valid_product_ids)) {
+                    throw new Exception("Invalid or inactive product in cart: {$cart_item['product_id']}");
+                }
                 foreach ($products as $product) {
                     if ($product['product_id'] == $cart_item['product_id']) {
-                        $price = !is_null($product['discounted_price']) && $product['discounted_price'] > 0 && $product['discounted_price'] < $product['price']
+                        if ($cart_item['quantity'] <= 0) {
+                            throw new Exception("Invalid quantity for product: {$product['name']}");
+                        }
+                        if ($product['stock_quantity'] < $cart_item['quantity']) {
+                            throw new Exception("Insufficient stock for product: {$product['name']}");
+                        }
+                        $price = !is_null($product['discounted_price']) && $product['discounted_price'] < $product['price']
                             ? $product['discounted_price']
                             : $product['price'];
-                        if ($price <= 0) {
-                            error_log("Skipping product ID {$product['product_id']}: Invalid price (price={$product['price']}, discounted_price={$product['discounted_price']})");
-                            continue; // Skip invalid product
-                        }
-                        $quantity = max(1, intval($cart_item['quantity']));
-                        $item_subtotal = $price * $quantity;
+                        $item_subtotal = $price * $cart_item['quantity'];
                         $subtotal += $item_subtotal;
+
                         $cart_items[] = [
                             'product_id' => $product['product_id'],
-                            'name' => $product['name'],
-                            'price' => $price,
-                            'quantity' => $quantity,
-                            'subtotal' => $item_subtotal,
-                            'stock_quantity' => $product['stock_quantity'],
-                            'minimum_order_quantity' => $product['minimum_order_quantity'],
-                            'image_url' => json_decode($product['image_url'], true)[0] ?? 'https://public.readdy.ai/api/placeholder/500/500'
+                            'product_name' => $product['name'],
+                            'quantity' => $cart_item['quantity'],
+                            'unit_price' => $price,
+                            'discount_amount' => ($product['price'] - $price) * $cart_item['quantity'],
+                            'subtotal' => $item_subtotal
                         ];
-                        $found = true;
                         break;
                     }
                 }
-                if (!$found) {
-                    error_log("Product ID {$cart_item['product_id']} not found or inactive for customer_id=$customer_id");
-                }
             }
+
             if (empty($cart_items)) {
-                $error = "No valid products found in cart. Please add available items.";
+                throw new Exception("No valid items in cart after validation.");
             }
-        } catch (PDOException $e) {
-            $error = "Error fetching cart items: " . $e->getMessage();
-            error_log("Cart fetch error: " . $e->getMessage());
-            $cart_items = [];
-            $subtotal = 0;
-        }
-    }
-} else {
-    $error = "Your cart is empty. Please add items to proceed.";
-}
-$total = $subtotal + $shipping_cost;
 
-// Debug total
-if ($total <= 0) {
-    $error = isset($error) ? $error . "<br>Total is invalid: $total (Subtotal: $subtotal, Shipping: $shipping_cost)" : "Total is invalid: $total (Subtotal: $subtotal, Shipping: $shipping_cost)";
-}
+            // Calculate totals
+            $shipping_cost = $shipping_options[$selected_shipping]['price'];
+            $tax_rate = 0.06;
+            $tax_amount = $subtotal * $tax_rate;
+            $total_amount = $subtotal + $shipping_cost + $tax_amount;
 
-// Get cart item count
-$cart_count = array_sum(array_column($cart_items, 'quantity'));
+            // Create shipping address string
+            $shipping_address_full = $_POST['shipping_address'] . ', ' . $_POST['shipping_city'] . ', ' .
+                $_POST['shipping_state'] . ' ' . $_POST['shipping_postal_code'];
+            $billing_address = isset($_POST['same_address']) ? $shipping_address_full : ($_POST['billing_address'] ?? $shipping_address_full);
 
-// Function to create an order
-function createOrder($pdo, $customer_id, $total, $shipping_cost, $shipping_address, $cart_items, $cart_id, $payment_method) {
-    if (empty($cart_items)) {
-        throw new Exception("Cannot place order: No valid items in cart.");
-    }
-    if ($total <= 0 || is_null($total)) {
-        throw new Exception("Cannot place order: Total must be greater than zero (got $total).");
-    }
-
-    try {
-        $pdo->beginTransaction();
-
-        // Map payment method to ENUM values
-        $mapped_payment_method = $payment_method;
-        if ($payment_method === 'card') {
-            $mapped_payment_method = 'credit_card';
-        } elseif ($payment_method === 'mobile') {
-            $mapped_payment_method = 'mobile_payment';
-        } elseif ($payment_method === 'bank_transfer') {
-            $mapped_payment_method = 'bank_transfer';
-        } elseif ($payment_method === 'cod') {
-            $mapped_payment_method = 'cod';
-        }
-
-        // Default values for orders table
-        $tax_amount = 0.00;
-        $payment_status = 'pending';
-        $order_status = 'pending';
-        $billing_address = $shipping_address;
-        $customer_notes = '';
-        $total = floatval($total);
-
-        // Insert into orders table
-        $stmt = $pdo->prepare("
-            INSERT INTO orders (
+            // Create order
+            $stmt = $pdo->prepare("INSERT INTO orders (
                 customer_id, order_date, total_amount, shipping_fee, tax_amount, 
                 payment_method, payment_status, order_status, shipping_address, 
-                billing_address, customer_notes
+                billing_address, customer_notes, product_name
             ) VALUES (
-                :customer_id, NOW(), :total_amount, :shipping_fee, :tax_amount, 
-                :payment_method, :payment_status, :order_status, :shipping_address, 
-                :billing_address, :customer_notes
-            )
-        ");
-        $stmt->bindParam(':customer_id', $customer_id, PDO::PARAM_INT);
-        $stmt->bindParam(':total_amount', $total);
-        $stmt->bindParam(':shipping_fee', $shipping_cost);
-        $stmt->bindParam(':tax_amount', $tax_amount);
-        $stmt->bindParam(':payment_method', $mapped_payment_method, PDO::PARAM_STR);
-        $stmt->bindParam(':payment_status', $payment_status, PDO::PARAM_STR);
-        $stmt->bindParam(':order_status', $order_status, PDO::PARAM_STR);
-        $stmt->bindParam(':shipping_address', $shipping_address, PDO::PARAM_STR);
-        $stmt->bindParam(':billing_address', $billing_address, PDO::PARAM_STR);
-        $stmt->bindParam(':customer_notes', $customer_notes, PDO::PARAM_STR);
-        $stmt->execute();
-        $order_id = $pdo->lastInsertId();
+                ?, NOW(), ?, ?, ?, ?, 'pending', 'pending', ?, ?, ?, ?
+            )");
 
-        // Insert into order_items table (exclude subtotal)
-        $stmt = $pdo->prepare("
-            INSERT INTO order_items (
-                order_id, product_id, quantity, unit_price, discount_amount, product_name
-            ) VALUES (
-                :order_id, :product_id, :quantity, :unit_price, :discount_amount, :product_name
-            )
-        ");
-        foreach ($cart_items as $item) {
-            $discount_amount = 0.00; // Adjust if you have discount logic
-            $stmt->bindParam(':order_id', $order_id, PDO::PARAM_INT);
-            $stmt->bindParam(':product_id', $item['product_id'], PDO::PARAM_INT);
-            $stmt->bindParam(':quantity', $item['quantity'], PDO::PARAM_INT);
-            $stmt->bindParam(':unit_price', $item['price']);
-            $stmt->bindParam(':discount_amount', $discount_amount);
-            $stmt->bindParam(':product_name', $item['name'], PDO::PARAM_STR);
-            $stmt->execute();
-
-            // Update product stock
-            $stmt = $pdo->prepare("
-                UPDATE products 
-                SET stock_quantity = stock_quantity - :quantity 
-                WHERE product_id = :product_id
-            ");
-            $stmt->bindParam(':quantity', $item['quantity'], PDO::PARAM_INT);
-            $stmt->bindParam(':product_id', $item['product_id'], PDO::PARAM_INT);
-            $stmt->execute();
-        }
-
-        // Clear the cart
-        $empty_cart_data = '[]';
-        $stmt = $pdo->prepare("
-            UPDATE shopping_carts 
-            SET cart_data = :cart_data, updated_at = NOW()
-            WHERE cart_id = :cart_id
-        ");
-        $stmt->bindParam(':cart_data', $empty_cart_data, PDO::PARAM_STR);
-        $stmt->bindParam(':cart_id', $cart_id, PDO::PARAM_INT);
-        $stmt->execute();
-
-        // Fetch order date for success message
-        $stmt = $pdo->prepare("SELECT order_date FROM orders WHERE order_id = :order_id");
-        $stmt->bindParam(':order_id', $order_id, PDO::PARAM_INT);
-        $stmt->execute();
-        $order_date = $stmt->fetchColumn();
-
-        $pdo->commit();
-        return ['order_id' => $order_id, 'order_date' => $order_date, 'total' => $total];
-    } catch (PDOException $e) {
-        $pdo->rollBack();
-        throw new Exception("Error placing order: " . $e->getMessage());
-    }
-}
-
-// Handle form submission
-$show_success = false;
-$order_details = [];
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
-    // Collect and sanitize form data
-    $full_name = filter_var(trim($_POST['full_name'] ?? ''), FILTER_SANITIZE_STRING);
-    $email = filter_var(trim($_POST['email'] ?? ''), FILTER_SANITIZE_EMAIL);
-    $phone = filter_var(trim($_POST['phone'] ?? ''), FILTER_SANITIZE_STRING);
-    $address = filter_var(trim($_POST['address'] ?? ''), FILTER_SANITIZE_STRING);
-    $city = filter_var(trim($_POST['city'] ?? ''), FILTER_SANITIZE_STRING);
-    $state = filter_var(trim($_POST['state'] ?? ''), FILTER_SANITIZE_STRING);
-    $postcode = filter_var(trim($_POST['postcode'] ?? ''), FILTER_SANITIZE_STRING);
-    $payment_method = filter_var($_POST['payment_method'] ?? 'card', FILTER_SANITIZE_STRING);
-
-    // Basic validation for shipping information
-    $errors = [];
-    if (isset($error)) {
-        $errors[] = $error; // Propagate cart errors
-    }
-    if (empty($full_name) || strlen($full_name) < 2 || strlen($full_name) > 100) {
-        $errors[] = "Full name is required and must be between 2 and 100 characters.";
-    }
-    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        $errors[] = "A valid email address is required.";
-    }
-    if (!preg_match("/^\d{3}-\d{7}$/", $phone)) {
-        $errors[] = "Phone number must be in the format xxx-xxxxxxx (e.g., 012-3456789).";
-    }
-    if (empty($address) || strlen($address) < 5 || strlen($address) > 255) {
-        $errors[] = "Address is required and must be between 5 and 255 characters.";
-    }
-    if (empty($city) || strlen($city) < 2 || strlen($city) > 100) {
-        $errors[] = "City is required and must be between 2 and 100 characters.";
-    }
-    $valid_states = ['Johor', 'Kedah', 'Kelantan', 'Malacca', 'Negeri Sembilan', 'Pahang', 'Penang', 'Perak', 'Perlis', 'Sabah', 'Sarawak', 'Selangor', 'Terengganu', 'Kuala Lumpur', 'Labuan', 'Putrajaya'];
-    if (empty($state) || !in_array($state, $valid_states)) {
-        $errors[] = "A valid state is required.";
-    }
-    if (!preg_match("/^[0-9]{5}$/", $postcode)) {
-        $errors[] = "A valid 5-digit postcode is required.";
-    }
-
-    // Recompute cart to ensure consistency
-    $cart_items = [];
-    $subtotal = 0;
-    if (!empty($cart_data)) {
-        $product_ids = array_column($cart_data, 'product_id');
-        if (empty($product_ids)) {
-            $errors[] = "Cart contains no valid product IDs.";
-        } else {
-            $placeholders = implode(',', array_fill(0, count($product_ids), '?'));
-            try {
-                $stmt = $pdo->prepare("SELECT product_id, name, price, discounted_price, stock_quantity, minimum_order_quantity, image_url 
-                                       FROM products 
-                                       WHERE product_id IN ($placeholders) AND is_active = 1");
-                $stmt->execute($product_ids);
-                $products = $stmt->fetchAll(PDO::FETCH_ASSOC);
-                foreach ($cart_data as $cart_item) {
-                    $found = false;
-                    foreach ($products as $product) {
-                        if ($product['product_id'] == $cart_item['product_id']) {
-                            $price = !is_null($product['discounted_price']) && $product['discounted_price'] > 0 && $product['discounted_price'] < $product['price']
-                                ? $product['discounted_price']
-                                : $product['price'];
-                            if ($price <= 0) {
-                                error_log("Skipping product ID {$product['product_id']}: Invalid price (price={$product['price']}, discounted_price={$product['discounted_price']})");
-                                continue;
-                            }
-                            $quantity = max(1, intval($cart_item['quantity']));
-                            $item_subtotal = $price * $quantity;
-                            $subtotal += $item_subtotal;
-                            $cart_items[] = [
-                                'product_id' => $product['product_id'],
-                                'name' => $product['name'],
-                                'price' => $price,
-                                'quantity' => $quantity,
-                                'subtotal' => $item_subtotal,
-                                'stock_quantity' => $product['stock_quantity'],
-                                'minimum_order_quantity' => $product['minimum_order_quantity'],
-                                'image_url' => json_decode($product['image_url'], true)[0] ?? 'https://public.readdy.ai/api/placeholder/500/500'
-                            ];
-                            $found = true;
-                            break;
-                        }
-                    }
-                    if (!$found) {
-                        error_log("Product ID {$cart_item['product_id']} not found or inactive for customer_id=$customer_id");
-                    }
-                }
-                if (empty($cart_items)) {
-                    $errors[] = "No valid products found in cart. Please add available items.";
-                }
-            } catch (PDOException $e) {
-                $errors[] = "Error fetching cart items: " . $e->getMessage();
-                error_log("Cart fetch error: " . $e->getMessage());
+            $product_names = array_column($cart_items, 'product_name');
+            $first_product_name = count($product_names) > 0 ? $product_names[0] : 'Multiple Products';
+            if (count($product_names) > 1) {
+                $first_product_name .= ' and ' . (count($product_names) - 1) . ' more';
             }
-        }
-    } else {
-        $errors[] = "Your cart is empty. Please add items to proceed.";
-    }
-    $total = $subtotal + $shipping_cost;
 
-    // Validate stock availability and minimum order quantity
-    foreach ($cart_items as $item) {
-        if ($item['quantity'] > $item['stock_quantity']) {
-            $errors[] = "Insufficient stock for {$item['name']}. Available: {$item['stock_quantity']}, Requested: {$item['quantity']}.";
-        }
-        if ($item['quantity'] < $item['minimum_order_quantity']) {
-            $errors[] = "Quantity for {$item['name']} must be at least {$item['minimum_order_quantity']}.";
-        }
-    }
+            $customer_notes = $_POST['order_notes'] ?? '';
+            $stmt->execute([
+                $customer_id,
+                $total_amount,
+                $shipping_cost,
+                $tax_amount,
+                $_POST['payment_method'],
+                $shipping_address_full,
+                $billing_address,
+                $customer_notes,
+                $first_product_name
+            ]);
 
-    // Validate cart and total
-    if (empty($cart_items)) {
-        $errors[] = "Your cart is empty. Please add items to proceed.";
-    }
-    if ($total <= 0) {
-        $errors[] = "Order total is invalid ($total). Please check your cart.";
-    }
+            $order_id = $pdo->lastInsertId();
 
-    // Validate payment method fields
-    if ($payment_method === 'card') {
-        $card_number = preg_replace('/\D/', '', trim($_POST['card_number'] ?? ''));
-        $expiry_date = trim($_POST['expiry_date'] ?? '');
-        $cvv = trim($_POST['cvv'] ?? '');
+            // Create order items
+            $stmt = $pdo->prepare("INSERT INTO order_items (
+                order_id, product_id, product_name, quantity, unit_price, 
+                discount_amount, subtotal
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)");
 
-        if (!preg_match("/^[0-9]{15,16}$/", $card_number) || !luhn_check($card_number)) {
-            $errors[] = "Valid card number is required (15-16 digits, must pass Luhn check).";
-        }
-        if (!preg_match("/^(0[1-9]|1[0-2])\/[0-9]{2}$/", $expiry_date) || !is_valid_expiry($expiry_date)) {
-            $errors[] = "Valid expiry date (MM/YY) is required and must be in the future.";
-        }
-        if (!preg_match("/^[0-9]{3,4}$/", $cvv)) {
-            $errors[] = "Valid CVV is required (3-4 digits).";
-        }
-    } elseif ($payment_method === 'mobile') {
-        $mobile_payment_number = preg_replace('/\D/', '', trim($_POST['mobile_payment_number'] ?? ''));
-        if (!preg_match("/^[0-9]{10,15}$/", $mobile_payment_number)) {
-            $errors[] = "Valid mobile payment number is required (10-15 digits).";
-        }
-    } elseif ($payment_method === 'bank_transfer') {
-        $bank_account_number = preg_replace('/\D/', '', trim($_POST['bank_account_number'] ?? ''));
-        if (!preg_match("/^[0-9]{10,20}$/", $bank_account_number)) {
-            $errors[] = "Valid bank account number is required (10-20 digits).";
-        }
-    } elseif ($payment_method !== 'cod') {
-        $errors[] = "Invalid payment method selected.";
-    }
+            foreach ($cart_items as $item) {
+                $stmt->execute([
+                    $order_id,
+                    $item['product_id'],
+                    $item['product_name'],
+                    $item['quantity'],
+                    $item['unit_price'],
+                    $item['discount_amount'],
+                    $item['subtotal']
+                ]);
 
-    // Format shipping address
-    $shipping_address = "$full_name\n$address\n$city, $state $postcode\nPhone: $phone\nEmail: $email";
+                // Update product stock
+                $new_stock = $products[array_search($item['product_id'], array_column($products, 'product_id'))]['stock_quantity'] - $item['quantity'];
+                $update_stmt = $pdo->prepare("UPDATE products SET stock_quantity = ? WHERE product_id = ?");
+                $update_stmt->execute([$new_stock, $item['product_id']]);
+            }
 
-    if (empty($errors)) {
-        error_log("Checkout: customer_id=$customer_id, subtotal=$subtotal, shipping_cost=$shipping_cost, total=$total, cart_items=" . json_encode($cart_items));
-        try {
-            $order_details = createOrder($pdo, $customer_id, $total, $shipping_cost, $shipping_address, $cart_items, $cart_id, $payment_method);
-            $show_success = true;
+            // Clear cart
+            $stmt = $pdo->prepare("UPDATE shopping_carts SET cart_data = '[]', updated_at = NOW() WHERE cart_id = ?");
+            $stmt->execute([$cart['cart_id']]);
+
+            // Sync session cart
+            $_SESSION['cart'] = [];
+
+            // Commit transaction
+            $pdo->commit();
+
+            // Set flag to show success modal
+            $show_success_modal = true;
+            $_SESSION['last_order_id'] = $order_id;
+
         } catch (Exception $e) {
-            $error = $e->getMessage();
-            error_log("Error placing order: " . $e->getMessage());
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            error_log("Order creation failed: " . $e->getMessage());
+            $error = "Error processing order: " . htmlspecialchars($e->getMessage());
         }
     } else {
-        $error = implode("<br>", $errors);
+        $error = implode("<br>", $validation_errors);
     }
 }
 
-// Luhn Algorithm for card number validation
-function luhn_check($number) {
-    $sum = 0;
-    $isEven = false;
-    for ($i = strlen($number) - 1; $i >= 0; $i--) {
-        $digit = (int)$number[$i];
-        if ($isEven) {
-            $digit *= 2;
-            if ($digit > 9) {
-                $digit -= 9;
+// Fetch cart items for order summary
+$cart_items = [];
+$subtotal = 0;
+if (!empty($cart_data)) {
+    $product_ids = array_column($cart_data, 'product_id');
+    $placeholders = implode(',', array_fill(0, count($product_ids), '?'));
+    try {
+        $stmt = $pdo->prepare("SELECT product_id, name, price, discounted_price, stock_quantity, minimum_order_quantity, image_url 
+                               FROM products 
+                               WHERE product_id IN ($placeholders) AND is_active = 1");
+        $stmt->execute($product_ids);
+        $products = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        foreach ($cart_data as $cart_item) {
+            foreach ($products as $product) {
+                if ($product['product_id'] == $cart_item['product_id']) {
+                    $price = !is_null($product['discounted_price']) && $product['discounted_price'] < $product['price']
+                        ? $product['discounted_price']
+                        : $product['price'];
+                    $item_subtotal = $price * $cart_item['quantity'];
+                    $subtotal += $item_subtotal;
+                    $cart_items[] = [
+                        'product_id' => $product['product_id'],
+                        'name' => $product['name'],
+                        'price' => $price,
+                        'quantity' => $cart_item['quantity'],
+                        'subtotal' => $item_subtotal,
+                        'image_url' => json_decode($product['image_url'], true)[0] ?? 'https://public.readdy.ai/api/placeholder/500/500'
+                    ];
+                    break;
+                }
             }
         }
-        $sum += $digit;
-        $isEven = !$isEven;
+    } catch (PDOException $e) {
+        error_log("Error fetching cart items: " . $e->getMessage());
+        $error = "Error fetching cart items. Please try again.";
     }
-    return $sum % 10 === 0;
 }
 
-// Validate expiry date is in the future
-function is_valid_expiry($expiry_date) {
-    if (!preg_match("/^(\d{2})\/(\d{2})$/", $expiry_date, $matches)) {
-        return false;
-    }
-    $month = (int)$matches[1];
-    $year = (int)$matches[2] + 2000;
-    $current_year = (int)date('Y');
-    $current_month = (int)date('n');
-    if ($year < $current_year || ($year === $current_year && $month < $current_month)) {
-        return false;
-    }
-    return true;
-}
+// Calculate totals
+$shipping_cost = $shipping_options[$selected_shipping]['price'];
+$tax_rate = 0.06;
+$tax_amount = $subtotal * $tax_rate;
+$total = $subtotal + $shipping_cost + $tax_amount;
+
+// Get cart item count for header
+$cart_count = array_sum(array_column($cart_items, 'quantity'));
 ?>
 
 <!DOCTYPE html>
@@ -454,138 +355,35 @@ function is_valid_expiry($expiry_date) {
     <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700&family=Open+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/remixicon/4.6.0/remixicon.min.css" rel="stylesheet">
     <style>
-        .input-field {
-            width: 100%;
-            padding: 0.75rem;
-            border: 1px solid #e5e7eb;
-            border-radius: 0.375rem;
-            outline: none;
-            transition: border-color 0.2s;
-        }
-        .input-field:focus {
-            border-color: #10b981;
-        }
-        .input-field.border-red-500 {
-            border-color: #dc2626;
-        }
-        .cart-table th, .cart-table td {
-            padding: 1rem;
-            text-align: left;
-        }
-        .cart-table img {
-            width: 60px;
-            height: 60px;
-            object-fit: cover;
-            border-radius: 0.375rem;
-        }
-        .summary-box {
-            background-color: #f9fafb;
-            padding: 1.5rem;
-            border-radius: 0.5rem;
-        }
-        .error-text {
-            color: #dc2626;
-            font-size: 0.875rem;
-            margin-top: 0.25rem;
-        }
-        .payment-option {
-            border: 1px solid #e5e7eb;
-            border-radius: 0.5rem;
-            padding: 1rem;
-            margin-bottom: 0.75rem;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        .payment-option:hover {
-            border-color: #9ca3af;
-        }
-        .payment-option.selected {
-            border-color: #10b981;
-            background-color: #ecfdf5;
-        }
-        .payment-option input[type="radio"] {
-            margin-right: 0.75rem;
-        }
-        .modal-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.5);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 1000;
-        }
-        .modal-content {
-            background: white;
-            padding: 2rem;
-            border-radius: 1rem;
-            width: 90%;
-            max-width: 450px;
-            text-align: center;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        }
-        .modal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 1.5rem;
-        }
-        .modal-details {
-            text-align: left;
-        }
-        .modal-details .total {
-            display: block;
-            font-size: 1.25rem;
-            font-weight: bold;
-            color: #3b82f6;
-            margin-bottom: 0.25rem;
-        }
-        .modal-details .date {
-            display: block;
-            font-size: 0.875rem;
-            color: #6b7280;
-        }
-        .modal-icon {
-            width: 40px;
-            height: 40px;
-            background: #34c759;
-            border-radius: 50%;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-        .modal-icon .checkmark {
-            color: white;
-            font-size: 1.5rem;
-            font-weight: bold;
-        }
-        .modal-title {
-            font-size: 1.5rem;
-            font-weight: 600;
-            color: #1f2937;
-            margin-bottom: 1.5rem;
-        }
-        .modal-button {
-            display: inline-block;
-            background: #3b82f6;
-            color: white;
-            padding: 0.75rem 2rem;
-            border-radius: 0.5rem;
-            text-decoration: none;
-            font-size: 1rem;
-            font-weight: 500;
-            transition: background 0.2s;
-        }
-        .modal-button:hover {
-            background: #2563eb;
-        }
+        .form-group { margin-bottom: 1.5rem; }
+        .form-label { display: block; margin-bottom: 0.5rem; font-weight: 500; color: #374151; }
+        .form-input { width: 100%; padding: 0.75rem 1rem; border: 1px solid #e5e7eb; border-radius: 0.375rem; outline: none; transition: border-color 0.2s; }
+        .form-input:focus { border-color: #10b981; box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1); }
+        .payment-option { border: 1px solid #e5e7eb; border-radius: 0.5rem; padding: 1rem; margin-bottom: 0.75rem; cursor: pointer; transition: all 0.2s; }
+        .payment-option:hover { border-color: #9ca3af; }
+        .payment-option.selected { border-color: #10b981; background-color: #ecfdf5; }
+        .payment-option input[type="radio"] { margin-right: 0.75rem; }
+        .payment-methods-container { margin-bottom: 1.5rem; }
+        .payment-details { display: none; padding: 1rem; border: 1px solid #e5e7eb; border-radius: 0.375rem; margin-top: 0.75rem; background-color: #f9fafb; }
+        .payment-details.active { display: block; }
+        .order-item { display: flex; padding: 1rem 0; border-bottom: 1px solid #e5e7eb; }
+        .order-item img { width: 64px; height: 64px; object-fit: cover; border-radius: 0.375rem; margin-right: 1rem; }
+        .error-box { background-color: #fee2e2; color: #b91c1c; padding: 1rem; border-radius: 0.375rem; margin-bottom: 1.5rem; }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5); z-index: 1000; }
+        .modal-content { background-color: white; margin: 15% auto; padding: 2rem; border-radius: 0.5rem; width: 90%; max-width: 400px; text-align: center; }
+        .modal.show { display: block; }
     </style>
 </head>
 <body class="bg-natural-light min-h-screen font-body">
-    <!-- Header -->
+    <!-- Success Modal -->
+    <div id="successModal" class="modal <?php echo $show_success_modal ? 'show' : ''; ?>">
+        <div class="modal-content">
+            <h2 class="text-2xl font-heading font-bold text-green-600 mb-4">Payment Successful!</h2>
+            <p class="text-gray-600 mb-6">Your order #<?php echo isset($_SESSION['last_order_id']) ? $_SESSION['last_order_id'] : ''; ?> has been placed successfully.</p>
+            <button id="closeModal" class="bg-primary text-white px-4 py-2 rounded-full hover:bg-primary-dark">Continue Shopping</button>
+        </div>
+    </div>
+
     <header class="fixed top-0 left-0 right-0 bg-white shadow-md z-50">
         <div class="max-w-7xl mx-auto px-4">
             <div class="flex items-center justify-between h-20">
@@ -605,8 +403,7 @@ function is_valid_expiry($expiry_date) {
                 <div class="flex items-center space-x-6">
                     <div class="relative hidden md:block">
                         <form action="search.php" method="GET">
-                            <input type="text" name="q" placeholder="Search for fresh produce..."
-                                class="w-64 pl-10 pr-4 py-2 rounded-full border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+                            <input type="text" name="q" placeholder="Search for fresh produce..." class="w-64 pl-10 pr-4 py-2 rounded-full border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
                             <button type="submit" class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
                                 <i class="ri-search-line"></i>
                             </button>
@@ -618,244 +415,212 @@ function is_valid_expiry($expiry_date) {
                             <i class="ri-shopping-cart-line text-xl group-hover:text-primary transition-colors"></i>
                             <span class="absolute -top-2 -right-2 bg-accent text-white text-xs rounded-full w-5 h-5 flex items-center justify-center"><?php echo $cart_count; ?></span>
                         </a>
-                        <?php if ($isLoggedIn): ?>
-                            <a href="logout.php" class="cursor-pointer hover:text-primary transition-colors" title="Log Out">
-                                <i class="ri-logout-box-line text-xl"></i>
-                            </a>
-                            <a href="profile.php" class="cursor-pointer hover:text-primary transition-colors" title="Profile">
-                                <i class="ri-user-line text-xl"></i>
-                            </a>
-                        <?php else: ?>
-                            <a href="login.php" class="cursor-pointer hover:text-primary transition-colors" title="Log In">
-                                <i class="ri-user-line text-xl"></i>
-                            </a>
-                        <?php endif; ?>
+                        <a href="logout.php" class="cursor-pointer hover:text-primary transition-colors" title="Log Out">
+                            <i class="ri-logout-box-line text-xl"></i>
+                        </a>
+                        <a href="profile.php" class="cursor-pointer hover:text-primary transition-colors" title="Profile">
+                            <i class="ri-user-line text-xl"></i>
+                        </a>
                     </div>
                 </div>
             </div>
         </div>
     </header>
 
-    <!-- Main Content -->
     <main class="pt-20">
         <section class="py-16 bg-white">
             <div class="max-w-7xl mx-auto px-4">
-                <!-- Breadcrumb -->
                 <nav class="flex items-center text-sm mb-6">
                     <a href="index.php" class="text-gray-500 hover:text-primary">Home</a>
                     <i class="ri-arrow-right-s-line mx-2 text-gray-400"></i>
-                    <a href="cart.php" class="text-gray-500 hover:text-primary">Cart</a>
+                    <a href="cart.php" class="text-gray-500 hover:text-primary">Shopping Cart</a>
                     <i class="ri-arrow-right-s-line mx-2 text-gray-400"></i>
                     <span class="text-gray-700">Checkout</span>
                 </nav>
 
                 <h1 class="text-3xl font-heading font-bold mb-8">Checkout</h1>
 
-                <!-- Error Messages -->
                 <?php if (isset($error)): ?>
-                    <div class="bg-red-100 text-red-800 p-4 rounded-lg mb-6">
-                        <?php echo htmlspecialchars($error); ?>
-                    </div>
+                    <div class="error-box"><?php echo $error; ?></div>
                 <?php endif; ?>
 
-                <?php if (empty($cart_items)): ?>
-                    <div class="bg-gray-50 p-6 rounded-lg text-center">
-                        <p class="text-gray-600">Your cart is empty. <a href="products.php" class="text-primary hover:underline">Start shopping now!</a></p>
-                    </div>
-                <?php else: ?>
+                <form method="POST" id="checkout-form">
                     <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                        <!-- Checkout Form -->
-                        <div class="lg:col-span-2 lg:order-first">
-                            <form method="POST" id="checkout-form" class="space-y-8">
-                                <!-- Shipping Information -->
-                                <div class="bg-gray-50 p-6 rounded-lg">
-                                    <h2 class="text-xl font-heading font-bold mb-4">Shipping Information</h2>
-                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div class="md:col-span-2">
-                                            <label for="full_name" class="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
-                                            <input type="text" name="full_name" id="full_name" class="input-field" value="<?php echo htmlspecialchars($_POST['full_name'] ?? ''); ?>" required>
-                                        </div>
-                                        <div>
-                                            <label for="email" class="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
-                                            <input type="email" name="email" id="email" class="input-field" value="<?php echo htmlspecialchars($_POST['email'] ?? ''); ?>" required>
-                                        </div>
-                                        <div>
-                                            <label for="phone" class="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
-                                            <input type="tel" name="phone" id="phone" class="input-field" placeholder="012-3456789" value="<?php echo htmlspecialchars($_POST['phone'] ?? ''); ?>" required>
-                                        </div>
-                                        <div class="md:col-span-2">
-                                            <label for="address" class="block text-sm font-medium text-gray-700 mb-1">Address</label>
-                                            <input type="text" name="address" id="address" class="input-field" value="<?php echo htmlspecialchars($_POST['address'] ?? ''); ?>" required>
-                                        </div>
-                                        <div>
-                                            <label for="city" class="block text-sm font-medium text-gray-700 mb-1">City</label>
-                                            <input type="text" name="city" id="city" class="input-field" value="<?php echo htmlspecialchars($_POST['city'] ?? ''); ?>" required>
-                                        </div>
-                                        <div>
-                                            <label for="state" class="block text-sm font-medium text-gray-700 mb-1">State</label>
-                                            <select name="state" id="state" class="input-field" required>
-                                                <option value="">Select a state</option>
-                                                <?php foreach (['Johor', 'Kedah', 'Kelantan', 'Malacca', 'Negeri Sembilan', 'Pahang', 'Penang', 'Perak', 'Perlis', 'Sabah', 'Sarawak', 'Selangor', 'Terengganu', 'Kuala Lumpur', 'Labuan', 'Putrajaya'] as $state_option): ?>
-                                                    <option value="<?php echo htmlspecialchars($state_option); ?>" <?php echo (isset($_POST['state']) && $_POST['state'] === $state_option) ? 'selected' : ''; ?>>
-                                                        <?php echo htmlspecialchars($state_option); ?>
-                                                    </option>
-                                                <?php endforeach; ?>
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <label for="postcode" class="block text-sm font-medium text-gray-700 mb-1">Postcode</label>
-                                            <input type="text" name="postcode" id="postcode" class="input-field" value="<?php echo htmlspecialchars($_POST['postcode'] ?? ''); ?>" required>
-                                        </div>
+                        <div class="lg:col-span-2">
+                            <div class="bg-gray-50 p-6 rounded-lg mb-6">
+                                <h2 class="text-xl font-heading font-bold mb-4">Customer Information</h2>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div class="form-group">
+                                        <label for="first_name" class="form-label">First Name <span class="text-red-500">*</span></label>
+                                        <input type="text" id="first_name" name="first_name" class="form-input" value="<?php echo htmlspecialchars($first_name); ?>" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="last_name" class="form-label">Last Name <span class="text-red-500">*</span></label>
+                                        <input type="text" id="last_name" name="last_name" class="form-input" value="<?php echo htmlspecialchars($last_name); ?>" required>
                                     </div>
                                 </div>
-
-                                <!-- Payment Method Selection -->
-                                <div class="bg-gray-50 p-6 rounded-lg">
-                                    <h2 class="text-xl font-heading font-bold mb-4">Payment Method</h2>
-                                    <div class="payment-methods">
-                                        <!-- Credit/Debit Card -->
-                                        <label class="payment-option block selected">
-                                            <input type="radio" name="payment_method" value="card" class="payment-method" checked>
-                                            <span class="font-medium">Credit/Debit Card</span>
-                                            <div class="mt-4 card-details">
-                                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                    <div class="md:col-span-2">
-                                                        <label for="card_number" class="block text-sm font-medium text-gray-700 mb-1">Card Number</label>
-                                                        <input type="text" name="card_number" id="card_number" class="input-field" placeholder="1234 5678 9012 3456" value="<?php echo htmlspecialchars($_POST['card_number'] ?? ''); ?>">
-                                                    </div>
-                                                    <div>
-                                                        <label for="expiry_date" class="block text-sm font-medium text-gray-700 mb-1">Expiry Date (MM/YY)</label>
-                                                        <input type="text" name="expiry_date" id="expiry_date" class="input-field" placeholder="MM/YY" value="<?php echo htmlspecialchars($_POST['expiry_date'] ?? ''); ?>">
-                                                    </div>
-                                                    <div>
-                                                        <label for="cvv" class="block text-sm font-medium text-gray-700 mb-1">CVV</label>
-                                                        <input type="text" name="cvv" id="cvv" class="input-field" placeholder="123" value="<?php echo htmlspecialchars($_POST['cvv'] ?? ''); ?>">
-                                                    </div>
-                                                </div>
-                                                <div class="mt-4 flex justify-center space-x-4">
-                                                    <i class="ri-visa-fill text-2xl text-gray-600"></i>
-                                                    <i class="ri-mastercard-fill text-2xl text-gray-600"></i>
-                                                </div>
-                                            </div>
-                                        </label>
-                                        <!-- Mobile Payments -->
-                                        <label class="payment-option block">
-                                            <input type="radio" name="payment_method" value="mobile" class="payment-method">
-                                            <span class="font-medium">Mobile Payments</span>
-                                            <div class="mt-4 mobile-details hidden">
-                                                <div class="grid grid-cols-1 gap-4">
-                                                    <div>
-                                                        <label for="mobile_payment_number" class="block text-sm font-medium text-gray-700 mb-1">Mobile Payment Number</label>
-                                                        <input type="text" name="mobile_payment_number" id="mobile_payment_number" class="input-field" placeholder="Enter mobile payment number" value="<?php echo htmlspecialchars($_POST['mobile_payment_number'] ?? ''); ?>">
-                                                    </div>
-                                                </div>
-                                                <div class="mt-4 flex justify-center">
-                                                    <i class="ri-smartphone-line text-2xl text-gray-600"></i>
-                                                </div>
-                                            </div>
-                                        </label>
-                                        <!-- Bank Transfer -->
-                                        <label class="payment-option block">
-                                            <input type="radio" name="payment_method" value="bank_transfer" class="payment-method">
-                                            <span class="font-medium">Bank Transfer</span>
-                                            <div class="mt-4 bank-transfer-details hidden">
-                                                <div class="grid grid-cols-1 gap-4">
-                                                    <div>
-                                                        <label for="bank_account_number" class="block text-sm font-medium text-gray-700 mb-1">Bank Account Number</label>
-                                                        <input type="text" name="bank_account_number" id="bank_account_number" class="input-field" placeholder="Enter bank account number" value="<?php echo htmlspecialchars($_POST['bank_account_number'] ?? ''); ?>">
-                                                    </div>
-                                                </div>
-                                                <div class="mt-4 flex justify-center">
-                                                    <i class="ri-bank-line text-2xl text-gray-600"></i>
-                                                </div>
-                                            </div>
-                                        </label>
-                                        <!-- Cash on Delivery -->
-                                        <label class="payment-option block">
-                                            <input type="radio" name="payment_method" value="cod" class="payment-method">
-                                            <span class="font-medium">Cash on Delivery</span>
-                                            <div class="mt-4 cod-details hidden">
-                                                <div class="mt-4 flex justify-center">
-                                                    <i class="ri-truck-line text-2xl text-gray-600"></i>
-                                                </div>
-                                            </div>
-                                        </label>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div class="form-group">
+                                        <label for="email" class="form-label">Email <span class="text-red-500">*</span></label>
+                                        <input type="email" id="email" name="email" class="form-input" value="<?php echo htmlspecialchars($email); ?>" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="phone" class="form-label">Phone <span class="text-red-500">*</span></label>
+                                        <input type="tel" id="phone" name="phone" class="form-input" value="<?php echo htmlspecialchars($phone); ?>" required>
                                     </div>
                                 </div>
-
-                                <!-- Place Order Button -->
-                                <button type="submit" name="place_order" id="place-order-btn" class="w-full bg-green-600 text-white px-6 py-3 rounded-full hover:bg-green-700 transition-colors">
-                                    Place Order (RM<?php echo number_format($total, 2); ?>)
+                            </div>
+                            <div class="bg-gray-50 p-6 rounded-lg mb-6">
+                                <h2 class="text-xl font-heading font-bold mb-4">Shipping Information</h2>
+                                <div class="form-group">
+                                    <label for="shipping_address" class="form-label">Address <span class="text-red-500">*</span></label>
+                                    <input type="text" id="shipping_address" name="shipping_address" class="form-input" value="<?php echo htmlspecialchars($shipping_address); ?>" required>
+                                </div>
+                                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div class="form-group">
+                                        <label for="shipping_city" class="form-label">City <span class="text-red-500">*</span></label>
+                                        <input type="text" id="shipping_city" name="shipping_city" class="form-input" value="<?php echo htmlspecialchars($shipping_city); ?>" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="shipping_state" class="form-label">State <span class="text-red-500">*</span></label>
+                                        <input type="text" id="shipping_state" name="shipping_state" class="form-input" value="<?php echo htmlspecialchars($shipping_state); ?>" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="shipping_postal_code" class="form-label">Postal Code <span class="text-red-500">*</span></label>
+                                        <input type="text" id="shipping_postal_code" name="shipping_postal_code" class="form-input" value="<?php echo htmlspecialchars($shipping_postal_code); ?>" required>
+                                    </div>
+                                </div>
+                                <div class="flex items-center mb-4">
+                                    <input type="checkbox" id="same_address" name="same_address" class="mr-3" checked>
+                                    <label for="same_address" class="font-medium">Same as shipping address</label>
+                                </div>
+                                <div id="billing-address-container" class="hidden">
+                                    <h2 class="text-xl font-heading font-bold mb-4">Billing Address</h2>
+                                    <div class="form-group">
+                                        <label for="billing_address" class="form-label">Address</label>
+                                        <input type="text" id="billing_address" name="billing_address" class="form-input">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="bg-gray-50 p-6 rounded-lg mb-6">
+                                <h2 class="text-xl font-heading font-bold mb-4">Payment Method</h2>
+                                <div class="payment-methods-container">
+                                    <label class="payment-option block selected" data-method="credit_card">
+                                        <input type="radio" name="payment_method" value="credit_card" class="payment-method" checked>
+                                        <span class="font-medium">Credit Card</span>
+                                        <span class="ml-2 text-gray-500">
+                                            <i class="ri-visa-fill text-lg"></i>
+                                            <i class="ri-mastercard-fill text-lg ml-1"></i>
+                                        </span>
+                                    </label>
+                                    <div id="credit-card-details" class="payment-details active">
+                                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div class="form-group">
+                                                <label for="card_number" class="form-label">Card Number <span class="text-red-500">*</span></label>
+                                                <input type="text" id="card_number" name="card_number" class="form-input" placeholder="1234 5678 9012 3456" maxlength="19">
+                                            </div>
+                                            <div class="form-group">
+                                                <label for="card_holder" class="form-label">Card Holder Name <span class="text-red-500">*</span></label>
+                                                <input type="text" id="card_holder" name="card_holder" class="form-input" placeholder="John Doe">
+                                            </div>
+                                            <div class="form-group">
+                                                <label for="card_expiry" class="form-label">Expiry Date <span class="text-red-500">*</span></label>
+                                                <input type="text" id="card_expiry" name="card_expiry" class="form-input" placeholder="MM/YY" maxlength="5">
+                                            </div>
+                                            <div class="form-group">
+                                                <label for="card_cvv" class="form-label">CVV <span class="text-red-500">*</span></label>
+                                                <input type="text" id="card_cvv" name="card_cvv" class="form-input" placeholder="123" maxlength="4">
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <label class="payment-option block" data-method="bank_transfer">
+                                        <input type="radio" name="payment_method" value="bank_transfer" class="payment-method">
+                                        <span class="font-medium">Bank Transfer</span>
+                                    </label>
+                                    <div id="bank-transfer-details" class="payment-details">
+                                        <p class="text-sm text-gray-600">Please make payment to the following bank account:</p>
+                                        <ul class="text-sm text-gray-600 mt-2">
+                                            <li><strong>Bank:</strong> FreshHarvest Bank</li>
+                                            <li><strong>Account Number:</strong> 1234-5678-9012</li>
+                                            <li><strong>Reference:</strong> Order #<?php echo time(); ?></li>
+                                        </ul>
+                                    </div>
+                                    <label class="payment-option block" data-method="mobile_payment">
+                                        <input type="radio" name="payment_method" value="mobile_payment" class="payment-method">
+                                        <span class="font-medium">Mobile Payment</span>
+                                        <span class="ml-2 text-gray-500">
+                                            <i class="ri-paypal-fill text-lg"></i>
+                                        </span>
+                                    </label>
+                                    <div id="mobile-payment-details" class="payment-details">
+                                        <p class="text-sm text-gray-600">Scan the QR code or use the mobile payment app to complete the payment.</p>
+                                        <div class="mt-2">
+                                            <img src="https://public.readdy.ai/api/placeholder/100/100" alt="QR Code" class="w-24 h-24">
+                                        </div>
+                                    </div>
+                                    <label class="payment-option block" data-method="cod">
+                                        <input type="radio" name="payment_method" value="cod" class="payment-method">
+                                        <span class="font-medium">Cash on Delivery</span>
+                                    </label>
+                                    <div id="cod-details" class="payment-details">
+                                        <p class="text-sm text-gray-600">Please have the exact amount ready upon delivery.</p>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="order_notes" class="form-label">Order Notes (Optional)</label>
+                                    <textarea id="order_notes" name="order_notes" class="form-input" rows="4" placeholder="Any special instructions for your order..."></textarea>
+                                </div>
+                            </div>
+                            <div class="mt-6">
+                                <button type="submit" name="place_order" class="w-full bg-primary text-white px-6 py-3 rounded-full hover:bg-primary-dark transition-colors">
+                                    Place Order
                                 </button>
-                            </form>
+                            </div>
                         </div>
-
-                        <!-- Order Summary -->
-                        <div class="lg:col-span-1 lg:order-last">
-                            <div class="summary-box">
+                        <div class="lg:col-span-1">
+                            <div class="bg-gray-50 p-6 rounded-lg sticky top-24">
                                 <h2 class="text-xl font-heading font-bold mb-4">Order Summary</h2>
-                                <!-- Cart Items -->
-                                <div class="mb-4">
-                                    <table class="cart-table w-full">
-                                        <tbody>
-                                            <?php foreach ($cart_items as $item): ?>
-                                                <tr class="border-b">
-                                                    <td class="flex items-center space-x-3">
-                                                        <img src="<?php echo htmlspecialchars($item['image_url']); ?>" alt="<?php echo htmlspecialchars($item['name']); ?>">
-                                                        <div>
-                                                            <p class="font-medium"><?php echo htmlspecialchars($item['name']); ?></p>
-                                                            <p class="text-sm text-gray-600">Qty: <?php echo $item['quantity']; ?></p>
-                                                        </div>
-                                                    </td>
-                                                    <td class="text-right">RM<?php echo number_format($item['subtotal'], 2); ?></td>
-                                                </tr>
-                                            <?php endforeach; ?>
-                                        </tbody>
-                                    </table>
+                                <?php foreach ($cart_items as $item): ?>
+                                    <div class="order-item">
+                                        <img src="<?php echo htmlspecialchars($item['image_url']); ?>" alt="<?php echo htmlspecialchars($item['name']); ?>">
+                                        <div class="flex-1">
+                                            <p class="font-medium"><?php echo htmlspecialchars($item['name']); ?></p>
+                                            <p class="text-sm text-gray-600">Quantity: <?php echo $item['quantity']; ?></p>
+                                            <p class="text-sm font-medium">RM<?php echo number_format($item['subtotal'], 2); ?></p>
+                                        </div>
+                                    </div>
+                                <?php endforeach; ?>
+                                <div class="mt-4 pt-4 border-t">
+                                    <div class="flex justify-between mb-2">
+                                        <span>Subtotal</span>
+                                        <span>RM<?php echo number_format($subtotal, 2); ?></span>
+                                    </div>
+                                    <div class="flex justify-between mb-2">
+                                        <span>Shipping (<?php echo $shipping_options[$selected_shipping]['name']; ?>)</span>
+                                        <span>RM<?php echo number_format($shipping_cost, 2); ?></span>
+                                    </div>
+                                    <div class="flex justify-between mb-2">
+                                        <span>Tax (6%)</span>
+                                        <span>RM<?php echo number_format($tax_amount, 2); ?></span>
+                                    </div>
+                                    <div class="flex justify-between font-bold text-lg border-t pt-3">
+                                        <span>Total</span>
+                                        <span>RM<?php echo number_format($total, 2); ?></span>
+                                    </div>
                                 </div>
-                                <!-- Subtotal -->
-                                <div class="flex justify-between mb-2">
-                                    <span>Subtotal</span>
-                                    <span>RM<?php echo number_format($subtotal, 2); ?></span>
-                                </div>
-                                <!-- Shipping Cost -->
-                                <div class="flex justify-between border-t pt-3 mb-2">
-                                    <span>Shipping (<?php echo $shipping_options[$selected_shipping]['name']; ?>)</span>
-                                    <span>RM<?php echo number_format($shipping_cost, 2); ?></span>
-                                </div>
-                                <!-- Total -->
-                                <div class="flex justify-between font-bold text-lg border-t pt-3">
-                                    <span>Total</span>
-                                    <span>RM<?php echo number_format($total, 2); ?></span>
+                                <div class="mt-4 flex justify-center space-x-4">
+                                    <i class="ri-visa-fill text-2xl text-gray-600"></i>
+                                    <i class="ri-mastercard-fill text-2xl text-gray-600"></i>
+                                    <i class="ri-paypal-fill text-2xl text-gray-600"></i>
                                 </div>
                             </div>
                         </div>
                     </div>
-                <?php endif; ?>
+                </form>
             </div>
         </section>
     </main>
 
-    <!-- Success Modal -->
-    <?php if ($show_success): ?>
-        <div class="modal-overlay" id="success-modal">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <div class="modal-details">
-                        <span class="total">RM<?php echo number_format($order_details['total'], 2); ?></span>
-                        <span class="date"><?php echo date('jS M, Y', strtotime($order_details['order_date'])); ?></span>
-                    </div>
-                    <div class="modal-icon">
-                        <span class="checkmark">✔</span>
-                    </div>
-                </div>
-                <h4 class="modal-title">Payment Successful</h4>
-                <a href="index.php" class="modal-button">OK</a>
-            </div>
-        </div>
-    <?php endif; ?>
-
-    <!-- Footer -->
     <footer class="bg-primary-dark text-white py-12">
         <div class="max-w-7xl mx-auto px-4">
             <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
@@ -897,225 +662,113 @@ function is_valid_expiry($expiry_date) {
         </div>
     </footer>
 
-    <!-- JavaScript -->
     <script>
         document.addEventListener('DOMContentLoaded', function () {
+            const sameAddressCheckbox = document.getElementById('same_address');
+            const billingAddressContainer = document.getElementById('billing-address-container');
+            sameAddressCheckbox.addEventListener('change', function () {
+                billingAddressContainer.classList.toggle('hidden', this.checked);
+                if (this.checked) {
+                    document.getElementById('billing_address').removeAttribute('required');
+                } else {
+                    document.getElementById('billing_address').setAttribute('required', '');
+                }
+            });
+
             const paymentMethods = document.querySelectorAll('.payment-method');
-            const cardDetails = document.querySelector('.card-details');
-            const mobileDetails = document.querySelector('.mobile-details');
-            const bankTransferDetails = document.querySelector('.bank-transfer-details');
-            const codDetails = document.querySelector('.cod-details');
-            const form = document.getElementById('checkout-form');
-            const placeOrderBtn = document.getElementById('place-order-btn');
-
-            function showError(input, message) {
-                const parent = input.closest('div');
-                let error = parent.querySelector('.error-text');
-                if (!error) {
-                    error = document.createElement('div');
-                    error.className = 'error-text';
-                    parent.appendChild(error);
-                }
-                error.textContent = message;
-                input.classList.add('border-red-500');
-            }
-
-            function clearError(input) {
-                const parent = input.closest('div');
-                const error = parent.querySelector('.error-text');
-                if (error) {
-                    error.remove();
-                }
-                input.classList.remove('border-red-500');
-            }
-
-            function validateInput(input, validateFn, errorMessage) {
-                input.addEventListener('blur', function () {
-                    clearError(input);
-                    if (!validateFn(input.value)) {
-                        showError(input, errorMessage);
-                    }
-                });
-            }
-
-            const validators = {
-                full_name: value => value.length >= 2 && value.length <= 100,
-                email: value => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value),
-                phone: value => /^\d{3}-\d{7}$/.test(value),
-                address: value => value.length >= 5 && value.length <= 255,
-                city: value => value.length >= 2 && value.length <= 100,
-                state: value => ['Johor', 'Kedah', 'Kelantan', 'Malacca', 'Negeri Sembilan', 'Pahang', 'Penang', 'Perak', 'Perlis', 'Sabah', 'Sarawak', 'Selangor', 'Terengganu', 'Kuala Lumpur', 'Labuan', 'Putrajaya'].includes(value),
-                postcode: value => /^[0-9]{5}$/.test(value),
-                card_number: value => /^[0-9]{15,16}$/.test(value.replace(/\D/g, '')),
-                expiry_date: value => /^(0[1-9]|1[0-2])\/[0-9]{2}$/.test(value) && isValidExpiry(value),
-                cvv: value => /^[0-9]{3,4}$/.test(value),
-                mobile_payment_number: value => /^[0-9]{10,15}$/.test(value.replace(/\D/g, '')),
-                bank_account_number: value => /^[0-9]{10,20}$/.test(value.replace(/\D/g, '')),
-            };
-
-            function isValidExpiry(value) {
-                const [month, year] = value.split('/').map(Number);
-                const fullYear = 2000 + year;
-                const now = new Date();
-                const currentYear = now.getFullYear();
-                const currentMonth = now.getMonth() + 1;
-                return fullYear > currentYear || (fullYear === currentYear && month >= currentMonth);
-            }
-
-            const inputs = {
-                full_name: document.getElementById('full_name'),
-                email: document.getElementById('email'),
-                phone: document.getElementById('phone'),
-                address: document.getElementById('address'),
-                city: document.getElementById('city'),
-                state: document.getElementById('state'),
-                postcode: document.getElementById('postcode'),
-                card_number: document.getElementById('card_number'),
-                expiry_date: document.getElementById('expiry_date'),
-                cvv: document.getElementById('cvv'),
-                mobile_payment_number: document.getElementById('mobile_payment_number'),
-                bank_account_number: document.getElementById('bank_account_number'),
-            };
-
-            validateInput(inputs.full_name, validators.full_name, 'Full name must be 2-100 characters.');
-            validateInput(inputs.email, validators.email, 'Enter a valid email address.');
-            validateInput(inputs.phone, validators.phone, 'Phone number must be in format xxx-xxxxxxx (e.g., 012-3456789).');
-            validateInput(inputs.address, validators.address, 'Address must be 5-255 characters.');
-            validateInput(inputs.city, validators.city, 'City must be 2-100 characters.');
-            validateInput(inputs.state, validators.state, 'Select a valid state.');
-            validateInput(inputs.postcode, validators.postcode, 'Enter a valid 5-digit postcode.');
-            validateInput(inputs.card_number, validators.card_number, 'Enter a valid card number (15-16 digits).');
-            validateInput(inputs.expiry_date, validators.expiry_date, 'Enter a valid expiry date (MM/YY, future date).');
-            validateInput(inputs.cvv, validators.cvv, 'Enter a valid CVV (3-4 digits).');
-            validateInput(inputs.mobile_payment_number, validators.mobile_payment_number, 'Enter a valid mobile number (10-15 digits).');
-            validateInput(inputs.bank_account_number, validators.bank_account_number, 'Enter a valid bank account number (10-20 digits).');
-
+            const paymentDetails = document.querySelectorAll('.payment-details');
             paymentMethods.forEach(method => {
                 method.addEventListener('change', function () {
                     document.querySelectorAll('.payment-option').forEach(option => {
                         option.classList.remove('selected');
                     });
                     this.closest('.payment-option').classList.add('selected');
-                    cardDetails.classList.add('hidden');
-                    mobileDetails.classList.add('hidden');
-                    bankTransferDetails.classList.add('hidden');
-                    codDetails.classList.add('hidden');
-                    if (this.value === 'card') {
-                        cardDetails.classList.remove('hidden');
-                    } else if (this.value === 'mobile') {
-                        mobileDetails.classList.remove('hidden');
-                    } else if (this.value === 'bank_transfer') {
-                        bankTransferDetails.classList.remove('hidden');
-                    } else if (this.value === 'cod') {
-                        codDetails.classList.remove('hidden');
-                    }
+                    paymentDetails.forEach(detail => {
+                        detail.classList.remove('active');
+                    });
+                    const methodId = this.closest('.payment-option').dataset.method;
+                    document.getElementById(`${methodId}-details`).classList.add('active');
+                    const creditCardFields = ['card_number', 'card_holder', 'card_expiry', 'card_cvv'];
+                    creditCardFields.forEach(field => {
+                        const input = document.getElementById(field);
+                        if (methodId === 'credit_card') {
+                            input.setAttribute('required', '');
+                        } else {
+                            input.removeAttribute('required');
+                        }
+                    });
                 });
             });
 
-            form.addEventListener('submit', function (e) {
-                let errors = [];
-                Object.entries(inputs).forEach(([key, input]) => {
-                    if (!input) return;
-                    clearError(input);
-                    const paymentMethod = document.querySelector('input[name="payment_method"]:checked').value;
-                    if (
-                        (key === 'card_number' || key === 'expiry_date' || key === 'cvv') && paymentMethod !== 'card' ||
-                        key === 'mobile_payment_number' && paymentMethod !== 'mobile' ||
-                        key === 'bank_account_number' && paymentMethod !== 'bank_transfer'
-                    ) {
+            const cardNumberInput = document.getElementById('card_number');
+            cardNumberInput.addEventListener('input', function (e) {
+                let value = e.target.value.replace(/\D/g, '');
+                let formatted = '';
+                for (let i = 0; i < value.length; i++) {
+                    if (i > 0 && i % 4 === 0) formatted += ' ';
+                    formatted += value[i];
+                }
+                e.target.value = formatted.trim();
+            });
+
+            const cardExpiryInput = document.getElementById('card_expiry');
+            cardExpiryInput.addEventListener('input', function (e) {
+                let value = e.target.value.replace(/\D/g, '');
+                if (value.length >= 3) {
+                    value = value.slice(0, 2) + '/' + value.slice(2);
+                }
+                e.target.value = value;
+            });
+
+            // Client-side form validation
+            document.getElementById('checkout-form').addEventListener('submit', function (e) {
+                const paymentMethod = document.querySelector('input[name="payment_method"]:checked').value;
+                if (paymentMethod === 'credit_card') {
+                    const cardNumber = document.getElementById('card_number').value.replace(/\s/g, '');
+                    const cardExpiry = document.getElementById('card_expiry').value;
+                    const cardCvv = document.getElementById('card_cvv').value;
+                    if (!/^\d{16}$/.test(cardNumber)) {
+                        e.preventDefault();
+                        alert('Please enter a valid 16-digit card number.');
                         return;
                     }
-                    if (!validators[key](input.value)) {
-                        errors.push({ input, message: input.dataset.error || `Invalid ${key.replace('_', ' ')}.` });
+                    if (!/^(0[1-9]|1[0-2])\/([0-9]{2})$/.test(cardExpiry)) {
+                        e.preventDefault();
+                        alert('Please enter a valid expiry date in MM/YY format.');
+                        return;
                     }
-                });
-                if (errors.length > 0) {
-                    e.preventDefault();
-                    errors.forEach(({ input, message }) => showError(input, message));
-                    placeOrderBtn.disabled = false;
+                    if (!/^\d{3,4}$/.test(cardCvv)) {
+                        e.preventDefault();
+                        alert('Please enter a valid CVV.');
+                        return;
+                    }
                 }
             });
 
-            function restrictToDigits(input, maxLength) {
-                input.addEventListener('input', function () {
-                    const start = this.selectionStart;
-                    const end = this.selectionEnd;
-                    let value = this.value.replace(/\D/g, '').substring(0, maxLength);
-                    this.value = value;
-                    let newPos = start;
-                    if (this.value.length < start) {
-                        newPos = this.value.length;
-                    }
-                    this.setSelectionRange(newPos, newPos);
+            // Modal handling
+            const successModal = document.getElementById('successModal');
+            const closeModalButton = document.getElementById('closeModal');
+            if (successModal.classList.contains('show')) {
+                document.body.style.overflow = 'hidden'; // Prevent scrolling
+            }
+
+            if (closeModalButton) {
+                closeModalButton.addEventListener('click', function () {
+                    successModal.classList.remove('show');
+                    document.body.style.overflow = 'auto';
+                    window.location.href = 'index.php'; // Redirect to homepage
                 });
             }
 
-            const phoneInput = document.getElementById('phone');
-            if (phoneInput) {
-                phoneInput.addEventListener('input', function () {
-                    const start = this.selectionStart;
-                    let value = this.value.replace(/\D/g, '').substring(0, 10);
-                    let formatted = '';
-                    if (value.length > 3) {
-                        formatted = value.substring(0, 3) + '-' + value.substring(3);
-                    } else {
-                        formatted = value;
-                    }
-                    this.value = formatted;
-                    let newPos = start;
-                    if (value.length < start) {
-                        newPos = this.value.length;
-                    } else if (this.value[start - 1] === '-') {
-                        newPos++;
-                    }
-                    this.setSelectionRange(newPos, newPos);
-                });
-            }
-
-            const cardNumber = document.getElementById('card_number');
-            if (cardNumber) {
-                cardNumber.addEventListener('input', function () {
-                    const start = this.selectionStart;
-                    let value = this.value.replace(/\D/g, '').substring(0, 16);
-                    let formatted = value.match(/.{1,4}/g);
-                    this.value = formatted ? formatted.join(' ') : value;
-                    let newPos = start;
-                    if (value.length < start) {
-                        newPos = this.value.length;
-                    } else if (this.value[start - 1] === ' ') {
-                        newPos++;
-                    }
-                    this.setSelectionRange(newPos, newPos);
-                });
-            }
-
-            const expiryDate = document.getElementById('expiry_date');
-            if (expiryDate) {
-                expiryDate.addEventListener('input', function () {
-                    const start = this.selectionStart;
-                    let value = this.value.replace(/\D/g, '').substring(0, 4);
-                    if (value.length >= 2) {
-                        this.value = value.substring(0, 2) + (value.length > 2 ? '/' + value.substring(2) : '');
-                    } else {
-                        this.value = value;
-                    }
-                    let newPos = start;
-                    if (this.value.length < start) {
-                        newPos = this.value.length;
-                    } else if (this.value[start - 1] === '/') {
-                        newPos++;
-                    }
-                    this.setSelectionRange(newPos, newPos);
-                });
-            }
-
-            if (inputs.cvv) restrictToDigits(inputs.cvv, 4);
-            if (inputs.mobile_payment_number) restrictToDigits(inputs.mobile_payment_number, 15);
-            if (inputs.bank_account_number) restrictToDigits(inputs.bank_account_number, 20);
+            // Close modal on clicking outside
+            successModal.addEventListener('click', function (e) {
+                if (e.target === successModal) {
+                    successModal.classList.remove('show');
+                    document.body.style.overflow = 'auto';
+                    window.location.href = 'index.php';
+                }
+            });
         });
     </script>
 </body>
 </html>
-<?php
-ob_end_flush();
-?>
