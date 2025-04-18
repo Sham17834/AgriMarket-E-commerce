@@ -7,14 +7,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $first_name = filter_input(INPUT_POST, 'first_name', FILTER_SANITIZE_STRING);
     $last_name = filter_input(INPUT_POST, 'last_name', FILTER_SANITIZE_STRING);
     $email = filter_input(INPUT_POST, 'email', FILTER_SANITIZE_EMAIL);
-    $country_code = filter_input(INPUT_POST, 'country_code', FILTER_SANITIZE_STRING);
-    $phone_number = filter_input(INPUT_POST, 'phone_number', FILTER_SANITIZE_STRING);
+    $phone = filter_input(INPUT_POST, 'phone', FILTER_SANITIZE_STRING);
     $password = $_POST['password'];
     $confirm_password = $_POST['confirm_password'];
-    $role = 'customer'; // Default role
-
-    // Combine country code and phone number
-    $phone = $country_code . $phone_number;
+    $role = 'customer'; 
 
     // Validate password match
     if ($password !== $confirm_password) {
@@ -28,15 +24,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    // Validate phone number based on country code length requirements
-    $phone_patterns = [
-        '+60' => '/^\+60(1[0-9])-([0-9]{7})$/', 
-        '+1' => '/^\+1([0-9]{3})-([0-9]{7})$/', 
-        '+44' => '/^\+44([0-9]{2})-([0-9]{8})$/', 
-    ];
-
-    if (!isset($phone_patterns[$country_code]) || !preg_match($phone_patterns[$country_code], $phone)) {
-        header("Location: register.php?error=Invalid phone number format for selected country");
+    // Validate phone number for Malaysia (01X-XXXXXXX)
+    if (!preg_match('/^01[0-9]-[0-9]{7}$/', $phone)) {
+        header("Location: register.php?error=Invalid phone number format. Use format: 016-1234567");
         exit;
     }
 
@@ -83,65 +73,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Register | FreshHarvest</title>
+    <title>Register | AgriMarket</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.tailwindcss.com/3.4.16"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link
-        href="https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700&family=Open+Sans:wght@400;500;600;700&display=swap"
-        rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700&family=Open+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/remixicon/4.6.0/remixicon.min.css" rel="stylesheet">
     <style>
         .password-strength {
             height: 4px;
             transition: all 0.3s ease;
         }
-
         .strength-weak {
             background-color: #ef4444;
             width: 25%;
         }
-
         .strength-medium {
             background-color: #f59e0b;
             width: 50%;
         }
-
         .strength-strong {
             background-color: #10b981;
             width: 75%;
         }
-
         .strength-very-strong {
             background-color: #3b82f6;
             width: 100%;
         }
-
-        /* Custom styles for phone number section */
         .phone-input-container {
-            display: flex;
-            align-items: center;
-            gap: 8px; 
+            display: block;
         }
-
-        .phone-input-container select {
-            width: 110px;
-            padding: 0.75rem; 
-            font-size: 0.875rem; 
-        }
-
         .phone-input-container input {
-            flex: 1; 
-            padding: 0.75rem 1rem; 
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border-radius: 0.375rem;
         }
     </style>
 </head>
-
 <body class="bg-natural-light min-h-screen font-body">
     <header class="fixed top-0 left-0 right-0 bg-white shadow-md z-50">
         <div class="max-w-7xl mx-auto px-4">
@@ -162,7 +134,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <div class="max-w-md mx-auto px-4">
             <div class="bg-white rounded-xl shadow-md overflow-hidden p-8">
                 <div class="text-center mb-8">
-                    <h1 class="text-3xl font-heading font-bold text-gray-800 mb-2">Join FreshHarvest</h1>
+                    <h1 class="text-3xl font-heading font-bold text-gray-800 mb-2">Join AgriMarket</h1>
                     <p class="text-gray-600">Create your account to start shopping</p>
                 </div>
 
@@ -175,15 +147,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <form method="POST" class="space-y-6">
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                            <label for="first_name" class="block text-sm font-medium text-gray-700 mb-1">First
-                                Name*</label>
+                            <label for="first_name" class="block text-sm font-medium text-gray-700 mb-1">First Name*</label>
                             <input type="text" id="first_name" name="first_name" required
                                 class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-primary focus:border-transparent"
                                 placeholder="John">
                         </div>
                         <div>
-                            <label for="last_name" class="block text-sm font-medium text-gray-700 mb-1">Last
-                                Name*</label>
+                            <label for="last_name" class="block text-sm font-medium text-gray-700 mb-1">Last Name*</label>
                             <input type="text" id="last_name" name="last_name" required
                                 class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-primary focus:border-transparent"
                                 placeholder="Doe">
@@ -200,16 +170,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div>
                         <label for="phone" class="block text-sm font-medium text-gray-700 mb-1">Phone Number*</label>
                         <div class="phone-input-container">
-                            <select id="country_code" name="country_code" required
-                                class="rounded-lg border border-gray-300 focus:ring-2 focus:ring-primary focus:border-transparent">
-                                <option value="+60">+60</option>
-                                <option value="+1">+1</option>
-                                <option value="+44">+44</option>
-                            </select>
-                            <input type="tel" id="phone_number" name="phone_number" required
+                            <input type="tel" id="phone" name="phone" required
                                 class="rounded-lg border border-gray-300 focus:ring-2 focus:ring-primary focus:border-transparent"
-                                placeholder="16-1234567" oninput="formatPhoneNumber(this)">
+                                placeholder="016-1234567" oninput="formatPhoneNumber(this)">
                         </div>
+                        <p id="phone_format_hint" class="mt-1 text-xs text-gray-500">Format: 016-1234567</p>
                     </div>
 
                     <div>
@@ -221,6 +186,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <button type="button"
                                 class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
                                 onclick="togglePassword('password')">
+                                <i id="password-eye" class="ri-eye-line"></i>
                             </button>
                         </div>
                         <div class="flex items-center mt-2 space-x-2">
@@ -231,8 +197,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
 
                     <div>
-                        <label for="confirm_password" class="block text-sm font-medium text-gray-700 mb-1">Confirm
-                            Password*</label>
+                        <label for="confirm_password" class="block text-sm font-medium text-gray-700 mb-1">Confirm Password*</label>
                         <div class="relative">
                             <input type="password" id="confirm_password" name="confirm_password" required
                                 class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-primary focus:border-transparent"
@@ -240,6 +205,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <button type="button"
                                 class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
                                 onclick="togglePassword('confirm_password')">
+                                <i id="confirm_password-eye" class="ri-eye-line"></i>
                             </button>
                         </div>
                     </div>
@@ -262,8 +228,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </form>
 
                 <div class="mt-8 text-center text-sm text-gray-600">
-                    Already have an account? <a href="login.php" class="text-primary font-medium hover:underline">Sign
-                        in</a>
+                    Already have an account? <a href="login.php" class="text-primary font-medium hover:underline">Sign in</a>
                 </div>
             </div>
         </div>
@@ -271,7 +236,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     <footer class="bg-white py-8 border-t border-gray-200">
         <div class="max-w-7xl mx-auto px-4 text-center text-gray-500 text-sm">
-            © 2025 FreshHarvest. All rights reserved.
+            © 2025 AgriMarket. All rights reserved.
         </div>
     </footer>
 
@@ -308,7 +273,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 strengthText.textContent = 'Weak';
             } else if (strength === 3) {
                 strengthBar.classList.add('strength-medium');
-                strengthText.textContent = 'Medium';
+                strengthTextContent = 'Medium';
             } else if (strength === 4) {
                 strengthBar.classList.add('strength-strong');
                 strengthText.textContent = 'Strong';
@@ -318,55 +283,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        function updatePhonePlaceholder() {
-            const countryCode = document.getElementById('country_code').value;
-            const phoneInput = document.getElementById('phone_number');
-            const hint = document.getElementById('phone_format_hint');
-            let placeholder = '';
-            let formatHint = '';
-
-            switch (countryCode) {
-                case '+60':
-                    placeholder = '16-1234567';
-                    formatHint = 'Format: +6016-1234567 (Malaysia)';
-                    break;
-                case '+1':
-                    placeholder = '202-1234567';
-                    formatHint = 'Format: +1202-1234567 (USA)';
-                    break;
-                case '+44':
-                    placeholder = '20-12345678';
-                    formatHint = 'Format: +4420-12345678 (UK)';
-                    break;
-                // Add more cases as needed
-            }
-            phoneInput.placeholder = placeholder;
-            hint.textContent = formatHint;
-        }
-
         function formatPhoneNumber(input) {
-            let value = input.value.replace(/[^0-9]/g, ''); // Remove non-digits
-            const countryCode = document.getElementById('country_code').value;
-            let maxLength = countryCode === '+60' ? 9 : (countryCode === '+1' ? 10 : 10); 
-
-            if (value.length > maxLength) {
-                value = value.slice(0, maxLength);
+            let value = input.value.replace(/[^0-9]/g, '');
+            if (value.length > 10) {
+                value = value.slice(0, 10);
             }
-
-            if (countryCode === '+60' && value.length > 2) {
-                input.value = value.slice(0, 2) + '-' + value.slice(2);
-            } else if (countryCode === '+1' && value.length > 3) {
-                input.value = value.slice(0, 3) + '-' + value.slice(3);
-            } else if (countryCode === '+44' && value.length > 2) {
-                input.value = value.slice(0, 2) + '-' + value.slice(2);
+            if (!value.startsWith('01')) {
+                value = '01' + value;
+            }
+            if (value.length > 3) {
+                input.value = value.slice(0, 3) + '-' + value.slice(3, 10);
             } else {
                 input.value = value;
             }
         }
-
-        // Initialize placeholder on page load
-        window.onload = updatePhonePlaceholder;
     </script>
 </body>
-
 </html>

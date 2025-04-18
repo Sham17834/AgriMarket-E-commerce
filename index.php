@@ -230,10 +230,6 @@ $isLoggedIn = isset($_SESSION['user_id']);
                                                 <span class="text-sm text-gray-500">
                                                     <?php echo $publishedDate; ?>
                                                 </span>
-                                                <a href="article.php?id=<?php echo $article['article_id']; ?>"
-                                                    class="text-primary font-medium text-sm hover:underline">
-                                                    Read More <i class="ri-arrow-right-line"></i>
-                                                </a>
                                             </div>
                                         </div>
                                     </div>
