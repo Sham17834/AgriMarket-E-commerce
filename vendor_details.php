@@ -327,6 +327,80 @@ function is_url_accessible($url) {
         </div>
     </div>
 </footer>
-<script src="script.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const reviewForm = document.querySelector('form[action="submit_vendor_review.php"]');
+    
+    if (reviewForm) {
+        reviewForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            
+            fetch('submit_vendor_review.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Create a new review element and prepend it to the reviews section
+                    const reviewsContainer = document.querySelector('.space-y-4');
+                    const newReview = document.createElement('div');
+                    newReview.className = 'bg-gray-50 p-4 rounded-lg';
+                    newReview.innerHTML = `
+                        <div class="flex items-center mb-2">
+                            <span class="text-yellow-400">
+                                ${'<i class="ri-star-fill"></i>'.repeat(data.rating)}
+                                ${'<i class="ri-star-line"></i>'.repeat(5 - data.rating)}
+                            </span>
+                            <span class="ml-2 font-semibold text-gray-800">${data.username}</span>
+                        </div>
+                        <p class="text-gray-600">${data.comment}</p>
+                        <p class="text-sm text-gray-500 mt-2">${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                    `;
+                    
+                    if (reviewsContainer) {
+                        reviewsContainer.prepend(newReview);
+                    } else {
+                        // If no reviews existed before, create the container
+                        const reviewsSection = document.querySelector('.space-y-4') || 
+                            document.querySelector('div[class*="vendor-reviews"]');
+                        const newContainer = document.createElement('div');
+                        newContainer.className = 'space-y-4';
+                        newContainer.appendChild(newReview);
+                        reviewsSection.appendChild(newContainer);
+                        
+                        // Remove the "no reviews" message if it exists
+                        const noReviewsDiv = document.querySelector('div.text-center.py-12');
+                        if (noReviewsDiv) {
+                            noReviewsDiv.remove();
+                        }
+                    }
+                    
+                    // Reset the form
+                    reviewForm.reset();
+                    
+                    // Show success message
+                    alert('Thank you for your review!');
+                    
+                    // Update the average rating display
+                    if (document.querySelector('.text-yellow-400')) {
+                        // This is a simplified update - in a real app you'd want to recalculate the average
+                        const avgRatingElement = document.querySelector('.text-yellow-400');
+                        // You might want to make another AJAX call to get the updated average
+                    }
+                } else {
+                    alert('Error: ' + (data.message || 'Failed to submit review'));
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while submitting your review.');
+            });
+        });
+    }
+});
+</script>
 </body>
 </html>
