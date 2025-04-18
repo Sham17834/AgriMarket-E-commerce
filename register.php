@@ -30,10 +30,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Validate phone number based on country code length requirements
     $phone_patterns = [
-        '+60' => '/^\+60(1[0-9])-([0-9]{7})$/', // Malaysia: +601X-XXXXXXX
-        '+1' => '/^\+1([0-9]{3})-([0-9]{7})$/', // USA: +1XXX-XXXXXXX
-        '+44' => '/^\+44([0-9]{2})-([0-9]{8})$/', // UK: +44XX-XXXXXXXX
-        // Add more country patterns as needed
+        '+60' => '/^\+60(1[0-9])-([0-9]{7})$/', 
+        '+1' => '/^\+1([0-9]{3})-([0-9]{7})$/', 
+        '+44' => '/^\+44([0-9]{2})-([0-9]{8})$/', 
     ];
 
     if (!isset($phone_patterns[$country_code]) || !preg_match($phone_patterns[$country_code], $phone)) {
@@ -127,18 +126,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .phone-input-container {
             display: flex;
             align-items: center;
-            gap: 8px; /* Reduced gap between dropdown and input */
+            gap: 8px; 
         }
 
         .phone-input-container select {
-            width: 110px; /* Fixed width for the country code dropdown */
-            padding: 0.75rem; /* Match padding with input */
-            font-size: 0.875rem; /* Slightly smaller font size */
+            width: 110px;
+            padding: 0.75rem; 
+            font-size: 0.875rem; 
         }
 
         .phone-input-container input {
-            flex: 1; /* Take remaining space */
-            padding: 0.75rem 1rem; /* Match padding with other inputs */
+            flex: 1; 
+            padding: 0.75rem 1rem; 
         }
     </style>
 </head>
@@ -149,7 +148,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="flex items-center justify-between h-20">
                 <a href="index.php" class="text-3xl font-heading font-bold text-primary flex items-center">
                     <i class="ri-leaf-line mr-2 text-primary-light"></i>
-                    FreshHarvest
+                    AgriMarket
                 </a>
                 <nav class="hidden md:flex items-center space-x-6">
                     <a href="products.php" class="text-gray-700 hover:text-primary font-medium">Browse Products</a>
@@ -206,7 +205,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <option value="+60">+60</option>
                                 <option value="+1">+1</option>
                                 <option value="+44">+44</option>
-                                <!-- Add more country codes as needed -->
                             </select>
                             <input type="tel" id="phone_number" name="phone_number" required
                                 class="rounded-lg border border-gray-300 focus:ring-2 focus:ring-primary focus:border-transparent"
@@ -223,7 +221,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <button type="button"
                                 class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
                                 onclick="togglePassword('password')">
-                                <i class="ri-eye-line" id="password-eye"></i>
                             </button>
                         </div>
                         <div class="flex items-center mt-2 space-x-2">
@@ -243,7 +240,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <button type="button"
                                 class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
                                 onclick="togglePassword('confirm_password')">
-                                <i class="ri-eye-line" id="confirm_password-eye"></i>
                             </button>
                         </div>
                     </div>

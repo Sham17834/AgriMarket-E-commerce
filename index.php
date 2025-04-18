@@ -28,13 +28,12 @@ $isLoggedIn = isset($_SESSION['user_id']);
                 <div class="flex items-center space-x-8">
                     <a href="index.php" class="text-3xl font-heading font-bold text-primary flex items-center">
                         <i class="ri-leaf-line mr-2 text-primary-light"></i>
-                        FreshHarvest
+                        AgriMarket
                     </a>
                     <nav class="hidden lg:flex space-x-8">
                         <a href="index.php" class="text-gray-700 hover:text-primary font-medium">Home</a>
                         <a href="products.php" class="text-gray-700 hover:text-primary font-medium">Products</a>
                         <a href="categories.php" class="text-gray-700 hover:text-primary font-medium">Categories</a>
-                        <a href="farmers.php" class="text-gray-700 hover:text-primary font-medium">Meet Our Farmers</a>
                         <a href="about.php" class="text-gray-700 hover:text-primary font-medium">About Us</a>
                     </nav>
                 </div>
@@ -50,15 +49,19 @@ $isLoggedIn = isset($_SESSION['user_id']);
                     </div>
                     <div class="flex items-center space-x-4">
                         <a href="search.php" class="md:hidden text-gray-700"><i class="ri-search-line text-xl"></i></a>
-                        <button class="relative cursor-pointer group" id="cartBtn">
+                        <a href="cart.php" class="relative cursor-pointer group">
                             <i class="ri-shopping-cart-line text-xl group-hover:text-primary transition-colors"></i>
                             <span
                                 class="absolute -top-2 -right-2 bg-accent text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">3</span>
-                        </button>
+                        </a>
                         <?php if ($isLoggedIn): ?>
                             <a href="logout.php" class="cursor-pointer hover:text-primary transition-colors"
                                 title="Log Out">
                                 <i class="ri-logout-box-line text-xl"></i>
+                            </a>
+                            <a href="profile.php" class="cursor-pointer hover:text-primary transition-colors"
+                                title="Profile">
+                                <i class="ri-user-line text-xl"></i>
                             </a>
                         <?php else: ?>
                             <a href="login.php" class="cursor-pointer hover:text-primary transition-colors" title="Log In">
@@ -72,7 +75,7 @@ $isLoggedIn = isset($_SESSION['user_id']);
     </header>
 
     <main class="pt-20">
-        <!-- Hero Section (Static) -->
+        <!-- Hero Section -->
         <section class="hero-section"
             style="background-image: url('https://public.readdy.ai/ai/img_res/376e8ca2ffbd11f6034acd0b36ed888c.jpg')">
             <div class="relative max-w-7xl mx-auto px-4 h-full flex items-center">
@@ -96,7 +99,7 @@ $isLoggedIn = isset($_SESSION['user_id']);
             </div>
         </section>
 
-        <!-- Shop by Category (Dynamic) -->
+        <!-- Shop by Category -->
         <section class="py-16 bg-white">
             <div class="max-w-7xl mx-auto px-4">
                 <div class="text-center mb-12">
@@ -112,8 +115,9 @@ $isLoggedIn = isset($_SESSION['user_id']);
 
                     $categoryImages = [
                         1 => 'https://plus.unsplash.com/premium_photo-1661902069934-e7db684d77b3?q=80&w=2070&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D', // Livestock
-                        2 => 'https://plus.unsplash.com/premium_photo-1679429383405-de11c569e905?q=80&w=2070&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D', // Crops
-                        3 => 'https://images.unsplash.com/photo-1506953823976-52e1fdc0149a?q=80&w=1935&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D'  // Forestry
+                        2 => 'https://images.unsplash.com/photo-1554871037-99938249e220?q=80&w=1935&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D', // Crops
+                        3 => 'https://images.unsplash.com/photo-1506953823976-52e1fdc0149a?q=80&w=1935&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D', // Forestry
+                        8 => 'https://images.unsplash.com/photo-1685853996091-f9b4fe630374?q=80&w=2070&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D', // Fish Farming
                     ];
 
                     while ($row = $stmt->fetch()) {
@@ -127,7 +131,7 @@ $isLoggedIn = isset($_SESSION['user_id']);
                                 <h3 class="text-2xl font-heading font-semibold">
                                     <?php echo htmlspecialchars($row['name']); ?>
                                 </h3>
-                                <a href="category.php?id=<?php echo $categoryId; ?>"
+                                <a href="products.php?category=<?php echo $categoryId; ?>"
                                     class="text-primary font-medium hover:underline flex items-center">
                                     View All <i class="ri-arrow-right-line ml-1"></i>
                                 </a>
@@ -145,81 +149,6 @@ $isLoggedIn = isset($_SESSION['user_id']);
             </div>
         </section>
 
-        <!-- Featured Products -->
-        <section class="py-16 bg-natural-light">
-            <div class="max-w-7xl mx-auto px-4">
-                <div class="text-center mb-12">
-                    <span class="inline-block text-primary font-semibold mb-2">TOP PICKS</span>
-                    <h2 class="text-3xl font-heading font-bold">Featured Products</h2>
-                </div>
-                <div class="product-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-                    <?php
-                    $stmt = $pdo->query("SELECT p.*, pc.name AS category_name, v.business_name, v.business_address, v.verified_status 
-                                 FROM products p 
-                                 JOIN product_categories pc ON p.category_id = pc.category_id 
-                                 JOIN vendors v ON p.vendor_id = v.vendor_id 
-                                 LIMIT 4");
-                    while ($row = $stmt->fetch()) {
-                        $imageSrc = $row['image_url'] ? json_decode($row['image_url'])[0] : 'https://public.readdy.ai/api/placeholder/400/320';
-                        ?>
-                        <div class="bg-white rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-all">
-                            <div class="relative">
-                                <?php if ($row['is_organic']) { ?>
-                                    <div class="seasonal-badge">Organic</div>
-                                <?php } ?>
-                                <img src="<?php echo htmlspecialchars($imageSrc); ?>"
-                                    alt="<?php echo htmlspecialchars($row['name']); ?>" class="w-full h-48 object-cover">
-                            </div>
-                            <div class="p-4">
-                                <div class="flex items-center justify-between mb-2">
-                                    <span
-                                        class="text-sm text-gray-500"><?php echo htmlspecialchars($row['category_name']); ?></span>
-                                    <span class="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">
-                                        <?php echo $row['is_organic'] ? 'Organic' : 'Standard'; ?>
-                                    </span>
-                                </div>
-                                <h3 class="text-lg font-heading font-semibold">
-                                    <?php echo htmlspecialchars($row['name']); ?>
-                                </h3>
-                                <div class="flex text-yellow-400 my-2">
-                                    <i class="ri-star-fill"></i><i class="ri-star-fill"></i><i class="ri-star-fill"></i><i
-                                        class="ri-star-fill"></i><i class="ri-star-half-fill"></i>
-                                    <span class="text-gray-500 text-sm ml-2">(28)</span>
-                                </div>
-                                <div class="flex items-center mt-2">
-                                    <span class="text-primary font-heading font-bold text-lg">
-                                        RM<?php echo number_format($row['price'], 2); ?>
-                                    </span>
-                                    <span class="quantity-badge">
-                                        <?php echo htmlspecialchars($row['packaging_type']); ?>
-                                    </span>
-                                </div>
-                                <div class="flex items-center justify-between mt-4">
-                                    <span class="text-sm text-primary flex items-center">
-                                        <i class="ri-user-line mr-1"></i>
-                                        <?php echo htmlspecialchars($row['business_name']); ?>
-                                        <?php if ($row['verified_status']) { ?>
-                                            <i class="ri-verified-badge-fill text-green-500 ml-1" title="Verified Vendor"></i>
-                                        <?php } ?>
-                                    </span>
-                                    <button
-                                        class="bg-primary text-white p-2 rounded-full hover:bg-primary-dark transition-colors flex items-center justify-center w-10 h-10">
-                                        <i class="ri-shopping-cart-line"></i>
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    <?php } ?>
-                </div>
-                <div class="text-center mt-12">
-                    <a href="products.php"
-                        class="inline-block bg-primary text-white px-8 py-3 rounded-button hover:bg-primary-dark transition-colors">
-                        View All Products <i class="ri-arrow-right-line ml-2"></i>
-                    </a>
-                </div>
-            </div>
-        </section>
-
         <!-- Agricultural Insights Section -->
         <section class="py-16 bg-white">
             <div class="max-w-7xl mx-auto px-4">
@@ -233,7 +162,6 @@ $isLoggedIn = isset($_SESSION['user_id']);
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                     <?php
                     try {
-                        // Query to get latest 3 featured articles
                         $stmt = $pdo->prepare("
                     SELECT k.*, u.username AS author_name 
                     FROM knowledge_base k
@@ -313,7 +241,6 @@ $isLoggedIn = isset($_SESSION['user_id']);
                                 <?php
                             }
                         } else {
-                            // Fallback if no featured articles found
                             $fallback_stmt = $pdo->query("
                         SELECT * FROM knowledge_base 
                         ORDER BY published_date DESC 
@@ -322,8 +249,6 @@ $isLoggedIn = isset($_SESSION['user_id']);
 
                             if ($fallback_stmt->rowCount() > 0) {
                                 while ($article = $fallback_stmt->fetch(PDO::FETCH_ASSOC)) {
-                                    // Same display logic as above
-                                    // ... [reuse the article display code from above]
                                 }
                             } else {
                                 echo '<div class="col-span-3 text-center py-8"><p class="text-gray-500">No articles available at the moment. Please check back later.</p></div>';
@@ -409,10 +334,6 @@ $isLoggedIn = isset($_SESSION['user_id']);
                                         <i class="ri-star-fill"></i>
                                         <span class="text-gray-600 ml-1">4.7</span>
                                     </span>
-                                    <a href="vendor.php?id=<?php echo $row['vendor_id']; ?>"
-                                        class="text-primary font-medium hover:underline whitespace-nowrap">
-                                        View Products <i class="ri-arrow-right-line ml-1"></i>
-                                    </a>
                                 </div>
                             </div>
                         </div>
@@ -441,11 +362,11 @@ $isLoggedIn = isset($_SESSION['user_id']);
                     try {
                         // Query for deals using PDO
                         $stmt = $pdo->query("SELECT p.*, pc.name AS category_name 
-                                    FROM products p 
-                                    JOIN product_categories pc ON p.category_id = pc.category_id 
-                                    WHERE (p.discounted_price IS NOT NULL OR p.stock_quantity > 50)
-                                    AND p.is_active = 1
-                                    LIMIT 3");
+                            FROM products p 
+                            JOIN product_categories pc ON p.category_id = pc.category_id 
+                            WHERE (p.discounted_price IS NOT NULL OR p.stock_quantity > 20)
+                            AND p.is_active = 1
+                            LIMIT 3");
 
                         if ($stmt->rowCount() > 0) {
                             while ($row = $stmt->fetch()) {
@@ -475,7 +396,6 @@ $isLoggedIn = isset($_SESSION['user_id']);
                                         <h3 class="text-xl font-heading font-semibold mb-2">
                                             <?php echo htmlspecialchars($row['name']); ?>
                                         </h3>
-                                        <p class="text-gray-600 mb-4"><?php echo htmlspecialchars($row['description']); ?></p>
                                         <div class="countdown-timer mb-3">
                                             <div class="countdown-item" id="countdown-<?php echo $row['product_id']; ?>">Ends in:
                                                 Loading...</div>
@@ -492,7 +412,7 @@ $isLoggedIn = isset($_SESSION['user_id']);
                                                         class="text-primary-dark font-bold text-xl">RM<?php echo number_format($row['price'], 2); ?></span>
                                                 <?php } ?>
                                             </div>
-                                            <a href="product.php?id=<?php echo $row['product_id']; ?>"
+                                            <a href="products.php?id=<?php echo $row['product_id']; ?>"
                                                 class="text-primary-dark font-medium hover:underline">
                                                 Shop Now <i class="ri-arrow-right-line"></i>
                                             </a>
@@ -513,7 +433,6 @@ $isLoggedIn = isset($_SESSION['user_id']);
         </section>
 
 
-        <!-- Static Sections Remain Unchanged -->
         <section class="py-16 bg-white">
             <div class="max-w-7xl mx-auto px-4">
                 <div class="text-center mb-12">
@@ -549,49 +468,6 @@ $isLoggedIn = isset($_SESSION['user_id']);
             </div>
         </section>
 
-        <!-- Newsletter Subscription -->
-        <section class="py-16 bg-primary">
-            <div class="max-w-7xl mx-auto px-4">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
-                    <div class="text-white">
-                        <span
-                            class="inline-block bg-white bg-opacity-20 px-4 py-1 rounded-full text-sm font-semibold mb-4">SPECIAL
-                            OFFER</span>
-                        <h2 class="text-3xl font-heading font-bold mb-4">Get 10% Off Your First Order</h2>
-                        <p class="text-lg mb-8 opacity-90">Subscribe to our newsletter and stay updated with our latest
-                            products, seasonal harvests, and exclusive offers.</p>
-                        <form method="POST" class="space-y-4">
-                            <div class="flex flex-col sm:flex-row">
-                                <input type="email" name="email" placeholder="Enter your email address" required
-                                    class="flex-1 px-4 py-3 rounded-l-button text-gray-900 focus:outline-none sm:rounded-r-none">
-                                <button type="submit" name="subscribe"
-                                    class="bg-secondary text-white px-6 py-3 rounded-button hover:bg-secondary-dark transition-colors whitespace-nowrap mt-2 sm:mt-0 sm:rounded-l-none">
-                                    Subscribe Now
-                                </button>
-                            </div>
-                            <p class="text-sm opacity-80">By subscribing, you agree to receive marketing emails from
-                                FreshHarvest. We respect your privacy and you can unsubscribe at any time.</p>
-                        </form>
-                    </div>
-                    <div class="hidden md:block relative">
-                        <img src="https://public.readdy.ai/ai/img_res/237d5372caa7df74433c038346d61f3a.jpg"
-                            alt="Newsletter" class="rounded-lg shadow-xl">
-                        <div class="absolute -bottom-6 -left-6 bg-white rounded-lg p-4 shadow-lg">
-                            <div class="flex items-center">
-                                <div class="bg-green-100 rounded-full p-2 mr-3">
-                                    <i class="ri-coupon-line text-xl text-primary"></i>
-                                </div>
-                                <div>
-                                    <h4 class="font-heading font-semibold">WELCOME10</h4>
-                                    <p class="text-sm text-gray-600">Use this code at checkout</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
-
         <!-- Customer Review -->
         <section class="py-16 bg-natural-light">
             <div class="max-w-7xl mx-auto px-4">
@@ -601,7 +477,6 @@ $isLoggedIn = isset($_SESSION['user_id']);
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
                     <?php
-                    // Get approved product reviews with customer information
                     $stmt = $pdo->query("
                 SELECT pr.*, u.username 
                 FROM product_reviews pr
@@ -690,11 +565,11 @@ $isLoggedIn = isset($_SESSION['user_id']);
                     <div>
                         <h5 class="font-heading font-bold text-lg mb-4">Follow Us</h5>
                         <div class="flex space-x-4">
-                            <a href="#" class="hover:text-primary-light transition-colors"><i
+                            <a href="https://web.facebook.com/INTI.edu/?locale=ms_MY&_rdc=1&_rdr#"
+                                class="hover:text-primary-light transition-colors"><i
                                     class="ri-facebook-fill text-xl"></i></a>
-                            <a href="#" class="hover:text-primary-light transition-colors"><i
-                                    class="ri-twitter-fill text-xl"></i></a>
-                            <a href="#" class="hover:text-primary-light transition-colors"><i
+                            <a href="https://web.facebook.com/INTI.edu/?locale=ms_MY&_rdc=1&_rdr#"
+                                class="hover:text-primary-light transition-colors"><i
                                     class="ri-instagram-fill text-xl"></i></a>
                         </div>
                     </div>
@@ -704,7 +579,6 @@ $isLoggedIn = isset($_SESSION['user_id']);
                 </div>
             </div>
         </footer>
-        <script src="script.js"></script>
 </body>
 
 </html>

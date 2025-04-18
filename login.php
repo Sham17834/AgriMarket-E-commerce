@@ -1,65 +1,69 @@
 <?php
+session_start(); // Move session_start to the top
+
+require_once 'db_connect.php';
+
 // Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    require_once 'db_connect.php';
-    
-    $email = filter_input(INPUT_POST, 'email', FILTER_SANITIZE_EMAIL);
+    $email = trim(filter_input(INPUT_POST, 'email', FILTER_SANITIZE_EMAIL));
     $password = $_POST['password'];
-    $role = $_POST['role']; // Get selected role
-    $remember = isset($_POST['remember']);
+    $role = trim($_POST['role']);
     
-    // Find user by email and role
-    $stmt = $pdo->prepare("SELECT * FROM users WHERE email = ? AND role = ?");
+    error_log("Login attempt: email=$email, role=$role"); 
+    
+    // Fetch user and vendor_id (if applicable)
+    $stmt = $pdo->prepare("SELECT u.*, v.vendor_id 
+                           FROM users u 
+                           LEFT JOIN vendors v ON u.user_id = v.vendor_id 
+                           WHERE u.email = ? AND u.role = ?");
     $stmt->execute([$email, $role]);
     $user = $stmt->fetch();
     
-    // Verify password
-    if ($user && password_verify($password, $user['password_hash'])) {
-        session_start();
-        $_SESSION['user_id'] = $user['user_id'];
-        $_SESSION['username'] = $user['username'];
-        $_SESSION['role'] = $user['role'];
-        
-        // Set remember me cookie if requested
-        if ($remember) {
-            $token = bin2hex(random_bytes(32));
-            $expiry = time() + 60 * 60 * 24 * 30; // 30 days
-            
-            $pdo->prepare("UPDATE users SET remember_token = ?, token_expiry = ? WHERE user_id = ?")
-                ->execute([$token, date('Y-m-d H:i:s', $expiry), $user['user_id']]);
-            
-            setcookie('remember', $token, $expiry, '/');
-        }
-        
-        header("Location: index.php"); // Changed to index.php
-        exit;
-    } else {
-        header("Location: login.php?error=Invalid credentials or role");
-        exit;
-    }
-}
-
-// Check for remember me cookie
-if (empty($_SESSION) && isset($_COOKIE['remember'])) {
-    require_once 'db_connect.php';
-    
-    $stmt = $pdo->prepare("SELECT * FROM users WHERE remember_token = ? AND token_expiry > NOW()");
-    $stmt->execute([$_COOKIE['remember']]);
-    $user = $stmt->fetch();
-    
     if ($user) {
-        session_start();
-        $_SESSION['user_id'] = $user['user_id'];
-        $_SESSION['username'] = $user['username'];
-        $_SESSION['role'] = $user['role'];
-        
-        header("Location: index.php"); // Changed to index.php (was incorrectly login.php)
+        error_log("User found: " . print_r($user, true)); 
+        if (password_verify($password, $user['password_hash'])) {
+            $_SESSION['user_id'] = $user['user_id'];
+            $_SESSION['username'] = $user['username'];
+            $_SESSION['role'] = $user['role'];
+            
+            // Set vendor_id in session if the role is vendor
+            if ($user['role'] === 'vendor' && $user['vendor_id']) {
+                $_SESSION['vendor_id'] = $user['vendor_id'];
+            } else if ($user['role'] === 'vendor' && !$user['vendor_id']) {
+                // If role is vendor but no vendor_id, redirect with error
+                header("Location: login.php?error=Vendor profile not found");
+                exit;
+            }
+            
+            error_log("Session set: user_id=" . $_SESSION['user_id'] . ", role=" . $_SESSION['role']);
+            
+            // Role-based redirection
+            if ($_SESSION['role'] === 'admin') {
+                header("Location: admin_analytics.php");
+                exit;
+            } elseif ($_SESSION['role'] === 'staff') {
+                header("Location: staff_manage.php");
+                exit;
+            } elseif ($_SESSION['role'] === 'vendor') {
+                header("Location: vendor_dashboard.php");
+                exit;
+            } else {
+                header("Location: index.php");
+                exit;
+            }
+        } else {
+            error_log("Password verification failed for email=$email");
+            header("Location: login.php?error=Invalid password and Credentials");
+            exit;
+        }
+    } else {
+        error_log("No user found for email=$email, role=$role");
+        header("Location: login.php?error=Invalid email or role");
         exit;
     }
 }
 
 // Get available roles for dropdown
-require_once 'db_connect.php';
 $roles_stmt = $pdo->query("SELECT DISTINCT role FROM users");
 $roles = $roles_stmt->fetchAll(PDO::FETCH_COLUMN);
 ?>
@@ -76,14 +80,15 @@ $roles = $roles_stmt->fetchAll(PDO::FETCH_COLUMN);
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700&family=Open+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/remixicon/4.6.0/remixicon.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
 </head>
 <body class="bg-natural-light min-h-screen font-body">
     <header class="fixed top-0 left-0 right-0 bg-white shadow-md z-50">
         <div class="max-w-7xl mx-auto px-4">
             <div class="flex items-center justify-between h-20">
                 <a href="index.php" class="text-3xl font-heading font-bold text-primary flex items-center">
-                    <i class="ri-leaf-line mr-2 text-primary-light"></i>
-                    FreshHarvest
+                    <i class="fa-solid fa-leaf mr-2 text-primary-light"></i>
+                    AgriMarket
                 </a>
                 <nav class="hidden md:flex items-center space-x-6">
                     <a href="products.php" class="text-gray-700 hover:text-primary font-medium">Browse Products</a>
@@ -121,7 +126,7 @@ $roles = $roles_stmt->fetchAll(PDO::FETCH_COLUMN);
                             <input type="password" id="password" name="password" required
                                 class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-primary focus:border-transparent"
                                 placeholder="••••••••">
-                            <button type="button" class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600" onclick="togglePassword('password')">
+                            <button type="button" id="password-eye" class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600" onclick="togglePassword('password')">
                             </button>
                         </div>
                     </div>
@@ -139,17 +144,12 @@ $roles = $roles_stmt->fetchAll(PDO::FETCH_COLUMN);
                         </select>
                     </div>
                     
-                    <div class="flex items-center justify-between">
-                        <div class="flex items-center">
-                            <input type="checkbox" id="remember" name="remember"
-                                class="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded">
-                            <label for="remember" class="ml-2 block text-sm text-gray-700">Remember me</label>
-                        </div>
+                    <div class="flex items-center justify-end">
                         <a href="forgot_password.php" class="text-sm text-primary hover:underline">Forgot password?</a>
                     </div>
                     
                     <button type="submit"
-                    class="w-full bg-primary text-white py-3 px-4 rounded-button font-semibold hover:bg-primary-dark transition-colors flex items-center justify-center">
+                        class="w-full bg-primary text-white py-3 px-4 rounded-button font-semibold hover:bg-primary-dark transition-colors flex items-center justify-center">
                         Sign In
                     </button>
                 </form>
@@ -174,12 +174,10 @@ $roles = $roles_stmt->fetchAll(PDO::FETCH_COLUMN);
             
             if (field.type === 'password') {
                 field.type = 'text';
-                eyeIcon.classList.remove('ri-eye-line');
-                eyeIcon.classList.add('ri-eye-off-line');
+                eyeIcon.innerHTML = '<i class="ri-eye-off-line"></i>';
             } else {
                 field.type = 'password';
-                eyeIcon.classList.remove('ri-eye-off-line');
-                eyeIcon.classList.add('ri-eye-line');
+                eyeIcon.innerHTML = '<i class="ri-eye-line"></i>';
             }
         }
     </script>

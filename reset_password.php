@@ -45,7 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <header class="fixed top-0 left-0 right-0 bg-white shadow-md">
         <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
             <a href="index.php" class="text-2xl font-bold text-green-600 flex items-center">
-                <i class="ri-leaf-line mr-2"></i>FreshHarvest
+                <i class="ri-leaf-line mr-2"></i>AgriMarket
             </a>
             <nav class="space-x-4">
                 <a href="products.php" class="text-gray-600 hover:text-green-600">Products</a>
