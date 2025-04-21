@@ -146,6 +146,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
         }
     }
 
+    // Bank transfer validation
+    if ($_POST['payment_method'] === 'bank_transfer') {
+        if (empty($_POST['bank_reference_number'])) {
+            $validation_errors[] = "Bank Reference Number is required.";
+        }
+    }
+
+    // Mobile payment validation
+    if ($_POST['payment_method'] === 'mobile_payment') {
+        if (empty($_POST['mobile_payment_phone'])) {
+            $validation_errors[] = "Phone Number is required for Mobile Payment.";
+        } elseif (!preg_match('/^\d{10,12}$/', preg_replace('/[^0-9]/', '', $_POST['mobile_payment_phone']))) {
+            $validation_errors[] = "Please enter a valid phone number for Mobile Payment.";
+        }
+    }
+
     // If validation passes, create order
     if (empty($validation_errors)) {
         try {
@@ -344,6 +360,7 @@ $cart_count = array_sum(array_column($cart_items, 'quantity'));
 
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -352,35 +369,140 @@ $cart_count = array_sum(array_column($cart_items, 'quantity'));
     <script src="https://cdn.tailwindcss.com/3.4.16"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700&family=Open+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700&family=Open+Sans:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/remixicon/4.6.0/remixicon.min.css" rel="stylesheet">
     <style>
-        .form-group { margin-bottom: 1.5rem; }
-        .form-label { display: block; margin-bottom: 0.5rem; font-weight: 500; color: #374151; }
-        .form-input { width: 100%; padding: 0.75rem 1rem; border: 1px solid #e5e7eb; border-radius: 0.375rem; outline: none; transition: border-color 0.2s; }
-        .form-input:focus { border-color: #10b981; box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1); }
-        .payment-option { border: 1px solid #e5e7eb; border-radius: 0.5rem; padding: 1rem; margin-bottom: 0.75rem; cursor: pointer; transition: all 0.2s; }
-        .payment-option:hover { border-color: #9ca3af; }
-        .payment-option.selected { border-color: #10b981; background-color: #ecfdf5; }
-        .payment-option input[type="radio"] { margin-right: 0.75rem; }
-        .payment-methods-container { margin-bottom: 1.5rem; }
-        .payment-details { display: none; padding: 1rem; border: 1px solid #e5e7eb; border-radius: 0.375rem; margin-top: 0.75rem; background-color: #f9fafb; }
-        .payment-details.active { display: block; }
-        .order-item { display: flex; padding: 1rem 0; border-bottom: 1px solid #e5e7eb; }
-        .order-item img { width: 64px; height: 64px; object-fit: cover; border-radius: 0.375rem; margin-right: 1rem; }
-        .error-box { background-color: #fee2e2; color: #b91c1c; padding: 1rem; border-radius: 0.375rem; margin-bottom: 1.5rem; }
-        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5); z-index: 1000; }
-        .modal-content { background-color: white; margin: 15% auto; padding: 2rem; border-radius: 0.5rem; width: 90%; max-width: 400px; text-align: center; }
-        .modal.show { display: block; }
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: #374151;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.375rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .form-input:focus {
+            border-color: #10b981;
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+        }
+
+        .form-input:disabled {
+            background-color: #f3f4f6;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        .payment-option {
+            border: 1px solid #e5e7eb;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .payment-option:hover {
+            border-color: #9ca3af;
+        }
+
+        .payment-option.selected {
+            border-color: #10b981;
+            background-color: #ecfdf5;
+        }
+
+        .payment-option input[type="radio"] {
+            margin-right: 0.75rem;
+        }
+
+        .payment-methods-container {
+            margin-bottom: 1.5rem;
+        }
+
+        .payment-details {
+            display: none;
+            padding: 1rem;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.375rem;
+            margin-top: 0.75rem;
+            background-color: #f9fafb;
+        }
+
+        .payment-details.active {
+            display: block;
+        }
+
+        .order-item {
+            display: flex;
+            padding: 1rem 0;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .order-item img {
+            width: 64px;
+            height: 64px;
+            object-fit: cover;
+            border-radius: 0.375rem;
+            margin-right: 1rem;
+        }
+
+        .error-box {
+            background-color: #fee2e2;
+            color: #b91c1c;
+            padding: 1rem;
+            border-radius: 0.375rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 15% auto;
+            padding: 2rem;
+            border-radius: 0.5rem;
+            width: 90%;
+            max-width: 400px;
+            text-align: center;
+        }
+
+        .modal.show {
+            display: block;
+        }
     </style>
 </head>
+
 <body class="bg-natural-light min-h-screen font-body">
     <!-- Success Modal -->
     <div id="successModal" class="modal <?php echo $show_success_modal ? 'show' : ''; ?>">
         <div class="modal-content">
             <h2 class="text-2xl font-heading font-bold text-green-600 mb-4">Payment Successful!</h2>
-            <p class="text-gray-600 mb-6">Your order #<?php echo isset($_SESSION['last_order_id']) ? $_SESSION['last_order_id'] : ''; ?> has been placed successfully.</p>
-            <button id="closeModal" class="bg-primary text-white px-4 py-2 rounded-full hover:bg-primary-dark">Continue Shopping</button>
+            <p class="text-gray-600 mb-6">Your order
+                #<?php echo isset($_SESSION['last_order_id']) ? $_SESSION['last_order_id'] : ''; ?> has been placed
+                successfully.</p>
+            <button id="closeModal" class="bg-primary text-white px-4 py-2 rounded-full hover:bg-primary-dark">Continue
+                Shopping</button>
         </div>
     </div>
 
@@ -403,7 +525,8 @@ $cart_count = array_sum(array_column($cart_items, 'quantity'));
                 <div class="flex items-center space-x-6">
                     <div class="relative hidden md:block">
                         <form action="search.php" method="GET">
-                            <input type="text" name="q" placeholder="Search for fresh produce..." class="w-64 pl-10 pr-4 py-2 rounded-full border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+                            <input type="text" name="q" placeholder="Search for fresh produce..."
+                                class="w-64 pl-10 pr-4 py-2 rounded-full border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
                             <button type="submit" class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
                                 <i class="ri-search-line"></i>
                             </button>
@@ -413,12 +536,15 @@ $cart_count = array_sum(array_column($cart_items, 'quantity'));
                         <a href="search.php" class="md:hidden text-gray-700"><i class="ri-search-line text-xl"></i></a>
                         <a href="cart.php" class="relative cursor-pointer group">
                             <i class="ri-shopping-cart-line text-xl group-hover:text-primary transition-colors"></i>
-                            <span class="absolute -top-2 -right-2 bg-accent text-white text-xs rounded-full w-5 h-5 flex items-center justify-center"><?php echo $cart_count; ?></span>
+                            <span
+                                class="absolute -top-2 -right-2 bg-accent text-white text-xs rounded-full w-5 h-5 flex items-center justify-center"><?php echo $cart_count; ?></span>
                         </a>
-                        <a href="logout.php" class="cursor-pointer hover:text-primary transition-colors" title="Log Out">
+                        <a href="logout.php" class="cursor-pointer hover:text-primary transition-colors"
+                            title="Log Out">
                             <i class="ri-logout-box-line text-xl"></i>
                         </a>
-                        <a href="profile.php" class="cursor-pointer hover:text-primary transition-colors" title="Profile">
+                        <a href="profile.php" class="cursor-pointer hover:text-primary transition-colors"
+                            title="Profile">
                             <i class="ri-user-line text-xl"></i>
                         </a>
                     </div>
@@ -451,43 +577,60 @@ $cart_count = array_sum(array_column($cart_items, 'quantity'));
                                 <h2 class="text-xl font-heading font-bold mb-4">Customer Information</h2>
                                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div class="form-group">
-                                        <label for="first_name" class="form-label">First Name <span class="text-red-500">*</span></label>
-                                        <input type="text" id="first_name" name="first_name" class="form-input" value="<?php echo htmlspecialchars($first_name); ?>" required>
+                                        <label for="first_name" class="form-label">First Name <span
+                                                class="text-red-500">*</span></label>
+                                        <input type="text" id="first_name" name="first_name" class="form-input"
+                                            value="<?php echo htmlspecialchars($first_name); ?>" required>
                                     </div>
                                     <div class="form-group">
-                                        <label for="last_name" class="form-label">Last Name <span class="text-red-500">*</span></label>
-                                        <input type="text" id="last_name" name="last_name" class="form-input" value="<?php echo htmlspecialchars($last_name); ?>" required>
+                                        <label for="last_name" class="form-label">Last Name <span
+                                                class="text-red-500">*</span></label>
+                                        <input type="text" id="last_name" name="last_name" class="form-input"
+                                            value="<?php echo htmlspecialchars($last_name); ?>" required>
                                     </div>
                                 </div>
                                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div class="form-group">
-                                        <label for="email" class="form-label">Email <span class="text-red-500">*</span></label>
-                                        <input type="email" id="email" name="email" class="form-input" value="<?php echo htmlspecialchars($email); ?>" required>
+                                        <label for="email" class="form-label">Email <span
+                                                class="text-red-500">*</span></label>
+                                        <input type="email" id="email" name="email" class="form-input"
+                                            value="<?php echo htmlspecialchars($email); ?>" required>
                                     </div>
                                     <div class="form-group">
-                                        <label for="phone" class="form-label">Phone <span class="text-red-500">*</span></label>
-                                        <input type="tel" id="phone" name="phone" class="form-input" value="<?php echo htmlspecialchars($phone); ?>" required>
+                                        <label for="phone" class="form-label">Phone <span
+                                                class="text-red-500">*</span></label>
+                                        <input type="tel" id="phone" name="phone" class="form-input"
+                                            value="<?php echo htmlspecialchars($phone); ?>" required>
                                     </div>
                                 </div>
                             </div>
                             <div class="bg-gray-50 p-6 rounded-lg mb-6">
                                 <h2 class="text-xl font-heading font-bold mb-4">Shipping Information</h2>
                                 <div class="form-group">
-                                    <label for="shipping_address" class="form-label">Address <span class="text-red-500">*</span></label>
-                                    <input type="text" id="shipping_address" name="shipping_address" class="form-input" value="<?php echo htmlspecialchars($shipping_address); ?>" required>
+                                    <label for="shipping_address" class="form-label">Address <span
+                                            class="text-red-500">*</span></label>
+                                    <input type="text" id="shipping_address" name="shipping_address" class="form-input"
+                                        value="<?php echo htmlspecialchars($shipping_address); ?>" required>
                                 </div>
                                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                                     <div class="form-group">
-                                        <label for="shipping_city" class="form-label">City <span class="text-red-500">*</span></label>
-                                        <input type="text" id="shipping_city" name="shipping_city" class="form-input" value="<?php echo htmlspecialchars($shipping_city); ?>" required>
+                                        <label for="shipping_city" class="form-label">City <span
+                                                class="text-red-500">*</span></label>
+                                        <input type="text" id="shipping_city" name="shipping_city" class="form-input"
+                                            value="<?php echo htmlspecialchars($shipping_city); ?>" required>
                                     </div>
                                     <div class="form-group">
-                                        <label for="shipping_state" class="form-label">State <span class="text-red-500">*</span></label>
-                                        <input type="text" id="shipping_state" name="shipping_state" class="form-input" value="<?php echo htmlspecialchars($shipping_state); ?>" required>
+                                        <label for="shipping_state" class="form-label">State <span
+                                                class="text-red-500">*</span></label>
+                                        <input type="text" id="shipping_state" name="shipping_state" class="form-input"
+                                            value="<?php echo htmlspecialchars($shipping_state); ?>" required>
                                     </div>
                                     <div class="form-group">
-                                        <label for="shipping_postal_code" class="form-label">Postal Code <span class="text-red-500">*</span></label>
-                                        <input type="text" id="shipping_postal_code" name="shipping_postal_code" class="form-input" value="<?php echo htmlspecialchars($shipping_postal_code); ?>" required>
+                                        <label for="shipping_postal_code" class="form-label">Postal Code <span
+                                                class="text-red-500">*</span></label>
+                                        <input type="text" id="shipping_postal_code" name="shipping_postal_code"
+                                            class="form-input"
+                                            value="<?php echo htmlspecialchars($shipping_postal_code); ?>" required>
                                     </div>
                                 </div>
                                 <div class="flex items-center mb-4">
@@ -498,81 +641,104 @@ $cart_count = array_sum(array_column($cart_items, 'quantity'));
                                     <h2 class="text-xl font-heading font-bold mb-4">Billing Address</h2>
                                     <div class="form-group">
                                         <label for="billing_address" class="form-label">Address</label>
-                                        <input type="text" id="billing_address" name="billing_address" class="form-input">
+                                        <input type="text" id="billing_address" name="billing_address"
+                                            class="form-input">
                                     </div>
                                 </div>
                             </div>
                             <div class="bg-gray-50 p-6 rounded-lg mb-6">
                                 <h2 class="text-xl font-heading font-bold mb-4">Payment Method</h2>
                                 <div class="payment-methods-container">
-                                    <label class="payment-option block selected" data-method="credit_card">
-                                        <input type="radio" name="payment_method" value="credit_card" class="payment-method" checked>
+                                    <!-- Credit Card -->
+                                    <label class="payment-option block selected">
+                                        <input type="radio" name="payment_method" value="credit_card"
+                                            class="payment-method" checked>
                                         <span class="font-medium">Credit Card</span>
                                         <span class="ml-2 text-gray-500">
                                             <i class="ri-visa-fill text-lg"></i>
                                             <i class="ri-mastercard-fill text-lg ml-1"></i>
                                         </span>
                                     </label>
-                                    <div id="credit-card-details" class="payment-details active">
+                                    <div id="credit_card-details" class="payment-details active">
                                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                             <div class="form-group">
-                                                <label for="card_number" class="form-label">Card Number <span class="text-red-500">*</span></label>
-                                                <input type="text" id="card_number" name="card_number" class="form-input" placeholder="1234 5678 9012 3456" maxlength="19">
+                                                <label for="card_number" class="form-label">Card Number <span
+                                                        class="text-red-500">*</span></label>
+                                                <input type="text" id="card_number" name="card_number"
+                                                    class="form-input" placeholder="1234 5678 9012 3456" maxlength="19"
+                                                    required>
                                             </div>
                                             <div class="form-group">
-                                                <label for="card_holder" class="form-label">Card Holder Name <span class="text-red-500">*</span></label>
-                                                <input type="text" id="card_holder" name="card_holder" class="form-input" placeholder="John Doe">
+                                                <label for="card_holder" class="form-label">Card Holder Name <span
+                                                        class="text-red-500">*</span></label>
+                                                <input type="text" id="card_holder" name="card_holder"
+                                                    class="form-input" placeholder="John Doe" required>
                                             </div>
                                             <div class="form-group">
-                                                <label for="card_expiry" class="form-label">Expiry Date <span class="text-red-500">*</span></label>
-                                                <input type="text" id="card_expiry" name="card_expiry" class="form-input" placeholder="MM/YY" maxlength="5">
+                                                <label for="card_expiry" class="form-label">Expiry Date <span
+                                                        class="text-red-500">*</span></label>
+                                                <input type="text" id="card_expiry" name="card_expiry"
+                                                    class="form-input" placeholder="MM/YY" maxlength="5" required>
                                             </div>
                                             <div class="form-group">
-                                                <label for="card_cvv" class="form-label">CVV <span class="text-red-500">*</span></label>
-                                                <input type="text" id="card_cvv" name="card_cvv" class="form-input" placeholder="123" maxlength="4">
+                                                <label for="card_cvv" class="form-label">CVV <span
+                                                        class="text-red-500">*</span></label>
+                                                <input type="text" id="card_cvv" name="card_cvv" class="form-input"
+                                                    placeholder="123" maxlength="4" required>
                                             </div>
                                         </div>
                                     </div>
-                                    <label class="payment-option block" data-method="bank_transfer">
-                                        <input type="radio" name="payment_method" value="bank_transfer" class="payment-method">
+
+                                    <!-- Bank Transfer -->
+                                    <label class="payment-option block">
+                                        <input type="radio" name="payment_method" value="bank_transfer"
+                                            class="payment-method">
                                         <span class="font-medium">Bank Transfer</span>
                                     </label>
-                                    <div id="bank-transfer-details" class="payment-details">
-                                        <p class="text-sm text-gray-600">Please make payment to the following bank account:</p>
-                                        <ul class="text-sm text-gray-600 mt-2">
-                                            <li><strong>Bank:</strong> FreshHarvest Bank</li>
-                                            <li><strong>Account Number:</strong> 1234-5678-9012</li>
-                                            <li><strong>Reference:</strong> Order #<?php echo time(); ?></li>
-                                        </ul>
+                                    <div id="bank_transfer-details" class="payment-details">
+                                        <div class="form-group">
+                                            <label for="bank_reference_number" class="form-label">Bank Account Number
+                                                <span class="text-red-500">*</span></label>
+                                            <input type="text" id="bank_reference_number" name="bank_reference_number"
+                                                class="form-input" placeholder="Enter your bank reference number">
+                                        </div>
                                     </div>
-                                    <label class="payment-option block" data-method="mobile_payment">
-                                        <input type="radio" name="payment_method" value="mobile_payment" class="payment-method">
+
+                                    <!-- Mobile Payment -->
+                                    <label class="payment-option block">
+                                        <input type="radio" name="payment_method" value="mobile_payment"
+                                            class="payment-method">
                                         <span class="font-medium">Mobile Payment</span>
                                         <span class="ml-2 text-gray-500">
                                             <i class="ri-paypal-fill text-lg"></i>
                                         </span>
                                     </label>
-                                    <div id="mobile-payment-details" class="payment-details">
-                                        <p class="text-sm text-gray-600">Scan the QR code or use the mobile payment app to complete the payment.</p>
-                                        <div class="mt-2">
-                                            <img src="https://public.readdy.ai/api/placeholder/100/100" alt="QR Code" class="w-24 h-24">
+                                    <div id="mobile_payment-details" class="payment-details">
+                                        <p class="text-sm text-gray-600 mb-2">Payment will be processed using the phone
+                                            number provided in Customer Information.</p>
+                                        <div class="form-group">
+                                            <label for="mobile_payment_phone" class="form-label">Phone Number <span
+                                                    class="text-red-500">*</span></label>
+                                            <input type="tel" id="mobile_payment_phone" name="mobile_payment_phone"
+                                                class="form-input" readonly required>
                                         </div>
                                     </div>
-                                    <label class="payment-option block" data-method="cod">
+
+                                    <!-- Cash on Delivery -->
+                                    <label class="payment-option block">
                                         <input type="radio" name="payment_method" value="cod" class="payment-method">
                                         <span class="font-medium">Cash on Delivery</span>
                                     </label>
-                                    <div id="cod-details" class="payment-details">
-                                        <p class="text-sm text-gray-600">Please have the exact amount ready upon delivery.</p>
-                                    </div>
                                 </div>
                                 <div class="form-group">
                                     <label for="order_notes" class="form-label">Order Notes (Optional)</label>
-                                    <textarea id="order_notes" name="order_notes" class="form-input" rows="4" placeholder="Any special instructions for your order..."></textarea>
+                                    <textarea id="order_notes" name="order_notes" class="form-input" rows="4"
+                                        placeholder="Any special instructions for your order..."></textarea>
                                 </div>
                             </div>
                             <div class="mt-6">
-                                <button type="submit" name="place_order" class="w-full bg-primary text-white px-6 py-3 rounded-full hover:bg-primary-dark transition-colors">
+                                <button type="submit" name="place_order"
+                                    class="w-full bg-primary text-white px-6 py-3 rounded-full hover:bg-primary-dark transition-colors">
                                     Place Order
                                 </button>
                             </div>
@@ -582,11 +748,13 @@ $cart_count = array_sum(array_column($cart_items, 'quantity'));
                                 <h2 class="text-xl font-heading font-bold mb-4">Order Summary</h2>
                                 <?php foreach ($cart_items as $item): ?>
                                     <div class="order-item">
-                                        <img src="<?php echo htmlspecialchars($item['image_url']); ?>" alt="<?php echo htmlspecialchars($item['name']); ?>">
+                                        <img src="<?php echo htmlspecialchars($item['image_url']); ?>"
+                                            alt="<?php echo htmlspecialchars($item['name']); ?>">
                                         <div class="flex-1">
                                             <p class="font-medium"><?php echo htmlspecialchars($item['name']); ?></p>
                                             <p class="text-sm text-gray-600">Quantity: <?php echo $item['quantity']; ?></p>
-                                            <p class="text-sm font-medium">RM<?php echo number_format($item['subtotal'], 2); ?></p>
+                                            <p class="text-sm font-medium">
+                                                RM<?php echo number_format($item['subtotal'], 2); ?></p>
                                         </div>
                                     </div>
                                 <?php endforeach; ?>
@@ -596,7 +764,8 @@ $cart_count = array_sum(array_column($cart_items, 'quantity'));
                                         <span>RM<?php echo number_format($subtotal, 2); ?></span>
                                     </div>
                                     <div class="flex justify-between mb-2">
-                                        <span>Shipping (<?php echo $shipping_options[$selected_shipping]['name']; ?>)</span>
+                                        <span>Shipping
+                                            (<?php echo $shipping_options[$selected_shipping]['name']; ?>)</span>
                                         <span>RM<?php echo number_format($shipping_cost, 2); ?></span>
                                     </div>
                                     <div class="flex justify-between mb-2">
@@ -629,14 +798,17 @@ $cart_count = array_sum(array_column($cart_items, 'quantity'));
                         <i class="ri-leaf-line mr-2 text-primary-light"></i>
                         FreshHarvest
                     </a>
-                    <p class="text-sm opacity-80">AgriMarket Solutions is a fictitious business created for a university course.</p>
+                    <p class="text-sm opacity-80">AgriMarket Solutions is a fictitious business created for a university
+                        course.</p>
                 </div>
                 <div>
                     <h5 class="font-heading font-bold text-lg mb-4">Quick Links</h5>
                     <ul class="space-y-2">
                         <li><a href="products.php" class="hover:text-primary-light transition-colors">Products</a></li>
-                        <li><a href="categories.php" class="hover:text-primary-light transition-colors">Categories</a></li>
-                        <li><a href="farmers.php" class="hover:text-primary-light transition-colors">Our Farmers</a></li>
+                        <li><a href="categories.php" class="hover:text-primary-light transition-colors">Categories</a>
+                        </li>
+                        <li><a href="farmers.php" class="hover:text-primary-light transition-colors">Our Farmers</a>
+                        </li>
                         <li><a href="about.php" class="hover:text-primary-light transition-colors">About Us</a></li>
                     </ul>
                 </div>
@@ -651,8 +823,12 @@ $cart_count = array_sum(array_column($cart_items, 'quantity'));
                 <div>
                     <h5 class="font-heading font-bold text-lg mb-4">Follow Us</h5>
                     <div class="flex space-x-4">
-                        <a href="https://web.facebook.com/INTI.edu/?locale=ms_MY&_rdc=1&_rdr#" class="hover:text-primary-light transition-colors"><i class="ri-facebook-fill text-xl"></i></a>
-                        <a href="https://www.instagram.com/inti_edu/?hl=en" class="hover:text-primary-light transition-colors"><i class="ri-instagram-fill text-xl"></i></a>
+                        <a href="https://web.facebook.com/INTI.edu/?locale=ms_MY&_rdc=1&_rdr#"
+                            class="hover:text-primary-light transition-colors"><i
+                                class="ri-facebook-fill text-xl"></i></a>
+                        <a href="https://www.instagram.com/inti_edu/?hl=en"
+                            class="hover:text-primary-light transition-colors"><i
+                                class="ri-instagram-fill text-xl"></i></a>
                     </div>
                 </div>
             </div>
@@ -664,44 +840,134 @@ $cart_count = array_sum(array_column($cart_items, 'quantity'));
 
     <script>
         document.addEventListener('DOMContentLoaded', function () {
+            // Handle billing address toggle
             const sameAddressCheckbox = document.getElementById('same_address');
             const billingAddressContainer = document.getElementById('billing-address-container');
             sameAddressCheckbox.addEventListener('change', function () {
                 billingAddressContainer.classList.toggle('hidden', this.checked);
+                const billingAddressInput = document.getElementById('billing_address');
                 if (this.checked) {
-                    document.getElementById('billing_address').removeAttribute('required');
+                    billingAddressInput.removeAttribute('required');
                 } else {
-                    document.getElementById('billing_address').setAttribute('required', '');
+                    billingAddressInput.setAttribute('required', '');
                 }
             });
 
+            // Define payment fields
+            const creditCardFields = ['card_number', 'card_holder', 'card_expiry', 'card_cvv'];
+            const bankTransferField = ['bank_reference_number'];
+            const mobilePaymentField = ['mobile_payment_phone'];
+            const allPaymentFields = [...creditCardFields, ...bankTransferField, ...mobilePaymentField];
+
+            // Synchronize mobile payment phone with customer info phone
+            const phoneInput = document.getElementById('phone');
+            const mobilePaymentPhoneInput = document.getElementById('mobile_payment_phone');
+            function syncMobilePaymentPhone() {
+                if (mobilePaymentPhoneInput && phoneInput) {
+                    mobilePaymentPhoneInput.value = phoneInput.value;
+                }
+            }
+            phoneInput.addEventListener('input', syncMobilePaymentPhone);
+            syncMobilePaymentPhone(); // Initial sync
+
+            // Add event listeners to payment method radios
             const paymentMethods = document.querySelectorAll('.payment-method');
-            const paymentDetails = document.querySelectorAll('.payment-details');
             paymentMethods.forEach(method => {
                 method.addEventListener('change', function () {
+                    // Clear all payment fields except mobile_payment_phone
+                    allPaymentFields.forEach(field => {
+                        const input = document.getElementById(field);
+                        if (input && field !== 'mobile_payment_phone') {
+                            input.value = '';
+                        }
+                    });
+
+                    // Update selected styling
                     document.querySelectorAll('.payment-option').forEach(option => {
                         option.classList.remove('selected');
                     });
                     this.closest('.payment-option').classList.add('selected');
-                    paymentDetails.forEach(detail => {
+
+                    // Show/hide payment details
+                    document.querySelectorAll('.payment-details').forEach(detail => {
                         detail.classList.remove('active');
                     });
-                    const methodId = this.closest('.payment-option').dataset.method;
-                    document.getElementById(`${methodId}-details`).classList.add('active');
-                    const creditCardFields = ['card_number', 'card_holder', 'card_expiry', 'card_cvv'];
-                    creditCardFields.forEach(field => {
-                        const input = document.getElementById(field);
-                        if (methodId === 'credit_card') {
-                            input.setAttribute('required', '');
-                        } else {
-                            input.removeAttribute('required');
-                        }
-                    });
+                    const methodId = this.value;
+                    const detailsSection = document.getElementById(`${methodId}-details`);
+                    if (detailsSection) {
+                        detailsSection.classList.add('active');
+                    } else {
+                        console.error(`Details section not found for method: ${methodId}`);
+                    }
+
+                    // Update field states
+                    updatePaymentFields(methodId);
+
+                    console.log('Selected payment method:', methodId);
+                    console.log('Showing details:', detailsSection ? detailsSection.id : 'None');
                 });
             });
 
+            // Function to update field states
+            function updatePaymentFields(methodId) {
+                console.log('Updating fields for:', methodId);
+
+                // Disable all payment fields
+                allPaymentFields.forEach(field => {
+                    const input = document.getElementById(field);
+                    if (input) {
+                        input.setAttribute('disabled', 'disabled');
+                        input.removeAttribute('required');
+                        console.log(`Disabled ${field}:`, input.hasAttribute('disabled'));
+                    }
+                });
+
+                // Enable fields for selected method
+                if (methodId === 'credit_card') {
+                    creditCardFields.forEach(field => {
+                        const input = document.getElementById(field);
+                        if (input) {
+                            input.removeAttribute('disabled');
+                            input.setAttribute('required', 'required');
+                            input.disabled = false;
+                            console.log(`Enabled ${field}:`, !input.hasAttribute('disabled'));
+                        }
+                    });
+                } else if (methodId === 'bank_transfer') {
+                    bankTransferField.forEach(field => {
+                        const input = document.getElementById(field);
+                        if (input) {
+                            input.removeAttribute('disabled');
+                            input.setAttribute('required', 'required');
+                            input.disabled = false;
+                            input.style.display = 'none';
+                            setTimeout(() => { input.style.display = ''; }, 0);
+                            console.log(`Enabled ${field}:`, !input.hasAttribute('disabled'));
+                        }
+                    });
+                } else if (methodId === 'mobile_payment') {
+                    mobilePaymentField.forEach(field => {
+                        const input = document.getElementById(field);
+                        if (input) {
+                            input.removeAttribute('disabled');
+                            input.setAttribute('required', 'required');
+                            input.disabled = false;
+                            console.log(`Enabled ${field}:`, !input.hasAttribute('disabled'));
+                        }
+                    });
+                }
+            }
+
+            // Initialize by triggering change on checked radio
+            const initialMethod = document.querySelector('.payment-method:checked');
+            if (initialMethod) {
+                initialMethod.dispatchEvent(new Event('change'));
+            }
+
+            // Format card number
             const cardNumberInput = document.getElementById('card_number');
             cardNumberInput.addEventListener('input', function (e) {
+                if (document.querySelector('input[name="payment_method"]:checked').value !== 'credit_card') return;
                 let value = e.target.value.replace(/\D/g, '');
                 let formatted = '';
                 for (let i = 0; i < value.length; i++) {
@@ -711,8 +977,10 @@ $cart_count = array_sum(array_column($cart_items, 'quantity'));
                 e.target.value = formatted.trim();
             });
 
+            // Format card expiry
             const cardExpiryInput = document.getElementById('card_expiry');
             cardExpiryInput.addEventListener('input', function (e) {
+                if (document.querySelector('input[name="payment_method"]:checked').value !== 'credit_card') return;
                 let value = e.target.value.replace(/\D/g, '');
                 if (value.length >= 3) {
                     value = value.slice(0, 2) + '/' + value.slice(2);
@@ -720,7 +988,7 @@ $cart_count = array_sum(array_column($cart_items, 'quantity'));
                 e.target.value = value;
             });
 
-            // Client-side form validation
+            // Form validation
             document.getElementById('checkout-form').addEventListener('submit', function (e) {
                 const paymentMethod = document.querySelector('input[name="payment_method"]:checked').value;
                 if (paymentMethod === 'credit_card') {
@@ -742,6 +1010,20 @@ $cart_count = array_sum(array_column($cart_items, 'quantity'));
                         alert('Please enter a valid CVV.');
                         return;
                     }
+                } else if (paymentMethod === 'bank_transfer') {
+                    const bankReferenceNumber = document.getElementById('bank_reference_number').value.trim();
+                    if (!bankReferenceNumber) {
+                        e.preventDefault();
+                        alert('Please enter a bank reference number.');
+                        return;
+                    }
+                } else if (paymentMethod === 'mobile_payment') {
+                    const mobilePaymentPhone = document.getElementById('mobile_payment_phone').value.trim();
+                    if (!/^\d{10,12}$/.test(mobilePaymentPhone.replace(/\D/g, ''))) {
+                        e.preventDefault();
+                        alert('Please enter a valid phone number in Customer Information.');
+                        return;
+                    }
                 }
             });
 
@@ -749,18 +1031,15 @@ $cart_count = array_sum(array_column($cart_items, 'quantity'));
             const successModal = document.getElementById('successModal');
             const closeModalButton = document.getElementById('closeModal');
             if (successModal.classList.contains('show')) {
-                document.body.style.overflow = 'hidden'; // Prevent scrolling
+                document.body.style.overflow = 'hidden';
             }
-
             if (closeModalButton) {
                 closeModalButton.addEventListener('click', function () {
                     successModal.classList.remove('show');
                     document.body.style.overflow = 'auto';
-                    window.location.href = 'index.php'; // Redirect to homepage
+                    window.location.href = 'index.php';
                 });
             }
-
-            // Close modal on clicking outside
             successModal.addEventListener('click', function (e) {
                 if (e.target === successModal) {
                     successModal.classList.remove('show');
@@ -771,4 +1050,5 @@ $cart_count = array_sum(array_column($cart_items, 'quantity'));
         });
     </script>
 </body>
+
 </html>

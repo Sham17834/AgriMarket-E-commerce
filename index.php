@@ -428,7 +428,6 @@ $isLoggedIn = isset($_SESSION['user_id']);
             </div>
         </section>
 
-
         <section class="py-16 bg-white">
             <div class="max-w-7xl mx-auto px-4">
                 <div class="text-center mb-12">
