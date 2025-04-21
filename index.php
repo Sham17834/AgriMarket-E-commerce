@@ -575,6 +575,37 @@ $isLoggedIn = isset($_SESSION['user_id']);
                 </div>
             </div>
         </footer>
+
+        <script>
+            document.addEventListener('DOMContentLoaded', function () {
+                function updateCountdown() {
+                    const now = new Date();
+                    const midnight = new Date(now);
+                    midnight.setHours(24, 0, 0, 0);
+
+                    const timeRemaining = midnight - now;
+                    if (timeRemaining <= 0) {
+                        document.querySelectorAll('.countdown-item').forEach(element => {
+                            element.innerHTML = 'Deal Expired';
+                        });
+                        return;
+                    }
+
+                    const hours = Math.floor(timeRemaining / (1000 * 60 * 60));
+                    const minutes = Math.floor((timeRemaining % (1000 * 60 * 60)) / (1000 * 60));
+                    const seconds = Math.floor((timeRemaining % (1000 * 60)) / 1000);
+
+                    const countdownText = `Ends in: ${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+
+                    document.querySelectorAll('.countdown-item').forEach(element => {
+                        element.innerHTML = countdownText;
+                    });
+                }
+
+                updateCountdown();
+                setInterval(updateCountdown, 1000);
+            });
+        </script>
 </body>
 
 </html>

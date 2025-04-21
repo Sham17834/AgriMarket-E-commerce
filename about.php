@@ -18,7 +18,9 @@ $isLoggedIn = isset($_SESSION['user_id']);
         href="https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700&family=Open+Sans:wght@400;500;600;700&display=swap"
         rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/remixicon/4.6.0/remixicon.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
+        integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA=="
+        crossorigin="anonymous" referrerpolicy="no-referrer" />
 </head>
 
 <body class="bg-natural-light min-h-screen font-body">
@@ -28,7 +30,7 @@ $isLoggedIn = isset($_SESSION['user_id']);
             <div class="flex items-center justify-between h-20">
                 <div class="flex items-center space-x-8">
                     <a href="index.php" class="text-3xl font-heading font-bold text-primary flex items-center">
-                        <i class="fa-solid fa-leaf mr-2 text-primary-light"></i>
+                        <i class="ri-leaf-line mr-2 text-primary-light"></i>
                         AgriMarket
                     </a>
                     <nav class="hidden lg:flex space-x-8">
@@ -50,12 +52,16 @@ $isLoggedIn = isset($_SESSION['user_id']);
                     </div>
                     <div class="flex items-center space-x-4">
                         <div class="md:hidden flex items-center">
-                            <button id="mobile-search-toggle" class="text-gray-700"><i class="ri-search-line text-xl"></i></button>
-                            <form action="products.php" method="GET" id="mobile-search-form" class="hidden absolute top-20 left-0 right-0 bg-white shadow-md p-4 z-50">
+                            <button id="mobile-search-toggle" class="text-gray-700"><i
+                                    class="ri-search-line text-xl"></i></button>
+                            <form action="products.php" method="GET" id="mobile-search-form"
+                                class="hidden absolute top-20 left-0 right-0 bg-white shadow-md p-4 z-50">
                                 <div class="relative">
-                                    <input type="text" name="search" id="mobile-search-input" placeholder="Search for fresh produce..."
+                                    <input type="text" name="search" id="mobile-search-input"
+                                        placeholder="Search for fresh produce..."
                                         class="w-full pl-10 pr-4 py-2 rounded-full border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
-                                    <button type="submit" class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                                    <button type="submit"
+                                        class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
                                         <i class="ri-search-line"></i>
                                     </button>
                                 </div>
@@ -92,9 +98,11 @@ $isLoggedIn = isset($_SESSION['user_id']);
             style="background-image: url('https://images.unsplash.com/photo-1500595046743-cd271d694d30?q=80&w=2074&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D')">
             <div class="relative max-w-7xl mx-auto px-4 h-full flex items-center">
                 <div class="max-w-2xl text-white">
-                    <span class="inline-block bg-accent px-4 py-1 rounded-full text-sm font-semibold mb-4">About FreshHarvest</span>
+                    <span class="inline-block bg-accent px-4 py-1 rounded-full text-sm font-semibold mb-4">About
+                        FreshHarvest</span>
                     <h1 class="text-5xl font-heading font-bold mb-6 leading-tight">Connecting You to Local Farmers</h1>
-                    <p class="text-xl mb-8 opacity-90">Learn about our mission to bring fresh, organic produce directly from local farms to your table.</p>
+                    <p class="text-xl mb-8 opacity-90">Learn about our mission to bring fresh, organic produce directly
+                        from local farms to your table.</p>
                     <a href="#mission"
                         class="bg-primary text-white px-8 py-3 rounded-button text-lg font-semibold hover:bg-primary-dark transition-colors flex items-center w-fit">
                         Discover More <i class="ri-arrow-right-line ml-2"></i>
@@ -109,12 +117,25 @@ $isLoggedIn = isset($_SESSION['user_id']);
                 <div class="text-center mb-12">
                     <span class="inline-block text-primary font-semibold mb-2">OUR MISSION</span>
                     <h2 class="text-3xl font-heading font-bold">Bridging the Gap Between Farmers and Consumers</h2>
-                    <p class="text-gray-600 mt-2 max-w-2xl mx-auto">We’re committed to supporting local farmers and providing you with the freshest, most sustainable produce.</p>
+                    <p class="text-gray-600 mt-2 max-w-2xl mx-auto">We’re committed to supporting local farmers and
+                        providing you with the freshest, most sustainable produce.</p>
                 </div>
                 <div class="flex flex-wrap items-center justify-center gap-8">
                     <div class="max-w-lg">
-                        <p class="text-gray-600 mb-4">FreshHarvest was launched in 2020 by AgriMarket Solutions with a focused mission: to build a digital marketplace that empowers Malaysian farmers and multi-vendors by enabling them to efficiently market their diverse agricultural products. This includes livestock (cattle, poultry, hogs, etc.), crops (corn, soybeans, hay, etc.), edible forestry products (almonds, walnuts, etc.), dairy (milk products), fish farming, and miscellaneous items (honey, etc.). We are dedicated to the role of fresh, organic produce in strengthening Malaysian communities and advancing sustainable farming practices.</p>
-                        <p class="text-gray-600 mb-4">Through close partnerships with farmers across Malaysia, including key agricultural regions like the Cameron Highlands and Johor, we ensure that every product meets our stringent standards for quality and freshness. Beyond a marketplace, our platform serves as an agricultural knowledge hub, providing insights into modern farming techniques, comparative market pricing, and streamlined workflows, making it seamless for you to discover, purchase, and enjoy farm-fresh goods while directly supporting Malaysia’s hardworking farmers.</p>
+                        <p class="text-gray-600 mb-4">FreshHarvest was launched in 2020 by AgriMarket Solutions with a
+                            focused mission: to build a digital marketplace that empowers Malaysian farmers and
+                            multi-vendors by enabling them to efficiently market their diverse agricultural products.
+                            This includes livestock (cattle, poultry, hogs, etc.), crops (corn, soybeans, hay, etc.),
+                            edible forestry products (almonds, walnuts, etc.), dairy (milk products), fish farming, and
+                            miscellaneous items (honey, etc.). We are dedicated to the role of fresh, organic produce in
+                            strengthening Malaysian communities and advancing sustainable farming practices.</p>
+                        <p class="text-gray-600 mb-4">Through close partnerships with farmers across Malaysia, including
+                            key agricultural regions like the Cameron Highlands and Johor, we ensure that every product
+                            meets our stringent standards for quality and freshness. Beyond a marketplace, our platform
+                            serves as an agricultural knowledge hub, providing insights into modern farming techniques,
+                            comparative market pricing, and streamlined workflows, making it seamless for you to
+                            discover, purchase, and enjoy farm-fresh goods while directly supporting Malaysia’s
+                            hardworking farmers.</p>
                     </div>
                     <img src="https://images.unsplash.com/photo-1600585154340-be6161a56a0c?q=80&w=2070&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D"
                         alt="Farmers working in a field" class="w-full max-w-md h-64 object-cover rounded-lg">
@@ -128,7 +149,8 @@ $isLoggedIn = isset($_SESSION['user_id']);
                 <div class="text-center mb-12">
                     <span class="inline-block text-primary font-semibold mb-2">MEET THE TEAM</span>
                     <h2 class="text-3xl font-heading font-bold">The People Behind FreshHarvest</h2>
-                    <p class="text-gray-600 mt-2 max-w-2xl mx-auto">Our dedicated team works tirelessly to bring you the best farm-fresh experience.</p>
+                    <p class="text-gray-600 mt-2 max-w-2xl mx-auto">Our dedicated team works tirelessly to bring you the
+                        best farm-fresh experience.</p>
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
                     <div class="bg-white p-6 rounded-lg shadow-sm text-center">
@@ -136,21 +158,24 @@ $isLoggedIn = isset($_SESSION['user_id']);
                             alt="Anna Green" class="w-24 h-24 rounded-full object-cover mx-auto mb-4">
                         <h3 class="text-xl font-heading font-semibold mb-2">Anna Green</h3>
                         <p class="text-primary font-medium mb-2">Founder & CEO</p>
-                        <p class="text-gray-600 text-sm">Anna started FreshHarvest to support local farmers and promote sustainable agriculture.</p>
+                        <p class="text-gray-600 text-sm">Anna started FreshHarvest to support local farmers and promote
+                            sustainable agriculture.</p>
                     </div>
                     <div class="bg-white p-6 rounded-lg shadow-sm text-center">
                         <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=200&auto=format&fit=crop"
                             alt="Mark Fields" class="w-24 h-24 rounded-full object-cover mx-auto mb-4">
                         <h3 class="text-xl font-heading font-semibold mb-2">Mark Fields</h3>
                         <p class="text-primary font-medium mb-2">Head of Operations</p>
-                        <p class="text-gray-600 text-sm">Mark ensures smooth logistics, getting produce from farms to your door quickly.</p>
+                        <p class="text-gray-600 text-sm">Mark ensures smooth logistics, getting produce from farms to
+                            your door quickly.</p>
                     </div>
                     <div class="bg-white p-6 rounded-lg shadow-sm text-center">
                         <img src="https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?q=80&w=200&auto=format&fit=crop"
                             alt="Sarah Bloom" class="w-24 h-24 rounded-full object-cover mx-auto mb-4">
                         <h3 class="text-xl font-heading font-semibold mb-2">Johson Sam</h3>
                         <p class="text-primary font-medium mb-2">Community Manager</p>
-                        <p class="text-gray-600 text-sm">Sarah builds strong relationships with our farmers and customers alike.</p>
+                        <p class="text-gray-600 text-sm">Sarah builds strong relationships with our farmers and
+                            customers alike.</p>
                     </div>
                 </div>
             </div>
@@ -162,7 +187,8 @@ $isLoggedIn = isset($_SESSION['user_id']);
                 <div class="text-center mb-12">
                     <span class="inline-block text-primary font-semibold mb-2">OUR VALUES</span>
                     <h2 class="text-3xl font-heading font-bold">What We Stand For</h2>
-                    <p class="text-gray-600 mt-2 max-w-2xl mx-auto">Our core values guide everything we do at FreshHarvest.</p>
+                    <p class="text-gray-600 mt-2 max-w-2xl mx-auto">Our core values guide everything we do at
+                        FreshHarvest.</p>
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
                     <div class="text-center p-6 rounded-lg hover:bg-natural-light transition-colors">
@@ -170,21 +196,24 @@ $isLoggedIn = isset($_SESSION['user_id']);
                             <i class="ri-leaf-line text-4xl text-primary"></i>
                         </div>
                         <h3 class="text-xl font-heading font-semibold mb-3">Sustainability</h3>
-                        <p class="text-gray-600">We promote eco-friendly farming practices to protect our planet for future generations.</p>
+                        <p class="text-gray-600">We promote eco-friendly farming practices to protect our planet for
+                            future generations.</p>
                     </div>
                     <div class="text-center p-6 rounded-lg hover:bg-natural-light transition-colors">
                         <div class="w-20 h-20 mx-auto mb-5 flex items-center justify-center">
                             <i class="ri-heart-line text-4xl text-primary"></i>
                         </div>
                         <h3 class="text-xl font-heading font-semibold mb-3">Community</h3>
-                        <p class="text-gray-600">We foster strong connections between farmers and consumers to build a thriving community.</p>
+                        <p class="text-gray-600">We foster strong connections between farmers and consumers to build a
+                            thriving community.</p>
                     </div>
                     <div class="text-center p-6 rounded-lg hover:bg-natural-light transition-colors">
                         <div class="w-20 h-20 mx-auto mb-5 flex items-center justify-center">
                             <i class="ri-shield-check-line text-4xl text-primary"></i>
                         </div>
                         <h3 class="text-xl font-heading font-semibold mb-3">Quality</h3>
-                        <p class="text-gray-600">We ensure every product meets the highest standards of freshness and quality.</p>
+                        <p class="text-gray-600">We ensure every product meets the highest standards of freshness and
+                            quality.</p>
                     </div>
                 </div>
             </div>
@@ -206,8 +235,10 @@ $isLoggedIn = isset($_SESSION['user_id']);
                     <h5 class="font-heading font-bold text-lg mb-4">Quick Links</h5>
                     <ul class="space-y-2">
                         <li><a href="products.php" class="hover:text-primary-light transition-colors">Products</a></li>
-                        <li><a href="categories.php" class="hover:text-primary-light transition-colors">Categories</a></li>
-                        <li><a href="farmers.php" class="hover:text-primary-light transition-colors">Our Farmers</a></li>
+                        <li><a href="categories.php" class="hover:text-primary-light transition-colors">Categories</a>
+                        </li>
+                        <li><a href="farmers.php" class="hover:text-primary-light transition-colors">Our Farmers</a>
+                        </li>
                         <li><a href="about.php" class="hover:text-primary-light transition-colors">About Us</a></li>
                     </ul>
                 </div>
@@ -222,9 +253,11 @@ $isLoggedIn = isset($_SESSION['user_id']);
                 <div>
                     <h5 class="font-heading font-bold text-lg mb-4">Follow Us</h5>
                     <div class="flex space-x-4">
-                        <a href="https://web.facebook.com/INTI.edu/?locale=ms_MY&_rdc=1&_rdr#" class="hover:text-primary-light transition-colors"><i
+                        <a href="https://web.facebook.com/INTI.edu/?locale=ms_MY&_rdc=1&_rdr#"
+                            class="hover:text-primary-light transition-colors"><i
                                 class="ri-facebook-fill text-xl"></i></a>
-                        <a href="https://www.instagram.com/inti_edu/?hl=en" class="hover:text-primary-light transition-colors"><i
+                        <a href="https://www.instagram.com/inti_edu/?hl=en"
+                            class="hover:text-primary-light transition-colors"><i
                                 class="ri-instagram-fill text-xl"></i></a>
                     </div>
                 </div>
