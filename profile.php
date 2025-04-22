@@ -48,6 +48,142 @@ try {
     error_log("Error fetching cart count: " . $e->getMessage());
 }
 
+// Fetch order history and create notifications for delivered orders
+$orders = [];
+try {
+    $stmt = $pdo->prepare("
+        SELECT o.order_id, o.order_date, o.order_status AS status 
+        FROM orders o 
+        WHERE o.customer_id = :customer_id 
+        ORDER BY o.order_date DESC
+    ");
+    $stmt->bindParam(':customer_id', $user_id, PDO::PARAM_INT);
+    $stmt->execute();
+    $orders = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    foreach ($orders as &$order) {
+        $stmt = $pdo->prepare("
+            SELECT SUM(subtotal) as order_total 
+            FROM order_items 
+            WHERE order_id = :order_id
+        ");
+        $stmt->bindParam(':order_id', $order['order_id'], PDO::PARAM_INT);
+        $stmt->execute();
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        $order['total_amount'] = $result['order_total'] ?? 0;
+
+        // Create notification for delivered orders
+        if (strtolower($order['status']) === 'delivered') {
+            // Check if notification already exists
+            $stmt = $pdo->prepare("
+                SELECT notification_id 
+                FROM notifications 
+                WHERE user_id = :user_id AND order_id = :order_id AND notification_type = 'order'
+            ");
+            $stmt->bindParam(':user_id', $user_id, PDO::PARAM_INT);
+            $stmt->bindParam(':order_id', $order['order_id'], PDO::PARAM_INT);
+            $stmt->execute();
+            if (!$stmt->fetch()) {
+                // Insert new notification
+                $title = "Order Delivered";
+                $message = "Your order #" . $order['order_id'] . " has been delivered.";
+                $stmt = $pdo->prepare("
+                    INSERT INTO notifications (user_id, order_id, title, message, notification_type, is_read, created_at) 
+                    VALUES (:user_id, :order_id, :title, :message, 'order', 0, NOW())
+                ");
+                $stmt->bindParam(':user_id', $user_id, PDO::PARAM_INT);
+                $stmt->bindParam(':order_id', $order['order_id'], PDO::PARAM_INT);
+                $stmt->bindParam(':title', $title, PDO::PARAM_STR);
+                $stmt->bindParam(':message', $message, PDO::PARAM_STR);
+                $stmt->execute();
+            }
+        }
+    }
+    unset($order);
+} catch (PDOException $e) {
+    error_log("Error fetching orders or creating notifications: " . $e->getMessage());
+}
+
+// Create promotional notifications for discounted or new products
+try {
+    $stmt = $pdo->prepare("
+        SELECT product_id, name, price, discounted_price, created_at 
+        FROM products 
+        WHERE is_active = 1 
+        AND (
+            (discounted_price > 0 AND discounted_price <= price * 0.8) 
+            OR created_at >= NOW() - INTERVAL 7 DAY
+        )
+    ");
+    $stmt->execute();
+    $promo_products = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    foreach ($promo_products as $product) {
+        $is_new = strtotime($product['created_at']) >= strtotime('-7 days');
+        $is_discounted = $product['discounted_price'] > 0 && $product['discounted_price'] <= $product['price'] * 0.8;
+
+        // Check if notification already exists
+        $stmt = $pdo->prepare("
+            SELECT notification_id 
+            FROM notifications 
+            WHERE user_id = :user_id AND product_id = :product_id AND notification_type = 'promotion'
+        ");
+        $stmt->bindParam(':user_id', $user_id, PDO::PARAM_INT);
+        $stmt->bindParam(':product_id', $product['product_id'], PDO::PARAM_INT);
+        $stmt->execute();
+        if (!$stmt->fetch()) {
+            // Insert new notification
+            $title = $is_new ? "New Product Added" : "Special Offer";
+            $message = $is_new 
+                ? "New product " . htmlspecialchars($product['name']) . " is now available!"
+                : "Check out " . htmlspecialchars($product['name']) . " at a discounted price of RM" . number_format($product['discounted_price'], 2) . "!";
+            $stmt = $pdo->prepare("
+                INSERT INTO notifications (user_id, product_id, title, message, notification_type, is_read, created_at) 
+                VALUES (:user_id, :product_id, :title, :message, 'promotion', 0, NOW())
+            ");
+            $stmt->bindParam(':user_id', $user_id, PDO::PARAM_INT);
+            $stmt->bindParam(':product_id', $product['product_id'], PDO::PARAM_INT);
+            $stmt->bindParam(':title', $title, PDO::PARAM_STR);
+            $stmt->bindParam(':message', $message, PDO::PARAM_STR);
+            $stmt->execute();
+        }
+    }
+} catch (PDOException $e) {
+    error_log("Error creating promotional notifications: " . $e->getMessage());
+}
+
+// Fetch notifications
+$notifications = [];
+try {
+    $stmt = $pdo->prepare("
+        SELECT notification_id, title, message, notification_type, is_read, created_at 
+        FROM notifications 
+        WHERE user_id = :user_id 
+        ORDER BY created_at DESC
+    ");
+    $stmt->bindParam(':user_id', $user_id, PDO::PARAM_INT);
+    $stmt->execute();
+    $notifications = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    error_log("Error fetching notifications: " . $e->getMessage());
+}
+
+// Handle marking notification as read via AJAX
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'mark_notification_read') {
+    try {
+        $notification_id = $_POST['notification_id'] ?? 0;
+        $stmt = $pdo->prepare("UPDATE notifications SET is_read = 1 WHERE notification_id = :notification_id AND user_id = :user_id");
+        $stmt->bindParam(':notification_id', $notification_id, PDO::PARAM_INT);
+        $stmt->bindParam(':user_id', $user_id, PDO::PARAM_INT);
+        $stmt->execute();
+        echo json_encode(['success' => true]);
+    } catch (PDOException $e) {
+        error_log("Error marking notification as read: " . $e->getMessage());
+        echo json_encode(['success' => false, 'error' => 'Failed to mark notification as read']);
+    }
+    exit;
+}
+
 // Handle form submission
 $success_message = '';
 $error_message = '';
@@ -60,7 +196,7 @@ $form_data = [
     'confirm_password' => '',
     'notifications' => ['order_updates', 'promotions']
 ];
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
     try {
         // Capture form inputs
         $form_data['username'] = trim($_POST['username'] ?? '');
@@ -70,9 +206,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $form_data['new_password'] = $_POST['new_password'] ?? '';
         $form_data['confirm_password'] = $_POST['confirm_password'] ?? '';
         $form_data['notifications'] = $_POST['notifications'] ?? [];
-
-        // Optional: Debug log for current_password (remove after testing)
-        error_log("User $user_id entered current_password: " . ($form_data['current_password'] ? '[non-empty]' : '[empty]'));
 
         // Validate inputs
         if (empty($form_data['username'])) {
@@ -152,35 +285,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error_message = $e->getMessage();
     }
 }
-
-// Fetch order history 
-$orders = [];
-try {
-    $stmt = $pdo->prepare("
-        SELECT o.order_id, o.order_date, o.order_status AS status 
-        FROM orders o 
-        WHERE o.customer_id = :customer_id 
-        ORDER BY o.order_date DESC
-    ");
-    $stmt->bindParam(':customer_id', $user_id, PDO::PARAM_INT);
-    $stmt->execute();
-    $orders = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
-    foreach ($orders as &$order) {
-        $stmt = $pdo->prepare("
-            SELECT SUM(subtotal) as order_total 
-            FROM order_items 
-            WHERE order_id = :order_id
-        ");
-        $stmt->bindParam(':order_id', $order['order_id'], PDO::PARAM_INT);
-        $stmt->execute();
-        $result = $stmt->fetch(PDO::FETCH_ASSOC);
-        $order['total_amount'] = $result['order_total'] ?? 0;
-    }
-    unset($order);
-} catch (PDOException $e) {
-    error_log("Error fetching orders: " . $e->getMessage());
-}
 ?>
 
 <!DOCTYPE html>
@@ -208,6 +312,31 @@ try {
             });
             document.getElementById(tabName + '-btn').classList.remove('bg-gray-100', 'text-gray-700');
             document.getElementById(tabName + '-btn').classList.add('bg-primary', 'text-white');
+        }
+
+        function markNotificationAsRead(notificationId) {
+            fetch('/profile.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `action=mark_notification_read&notification_id=${notificationId}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const notificationElement = document.getElementById(`notification-${notificationId}`);
+                    notificationElement.classList.remove('bg-blue-50');
+                    notificationElement.querySelector('.mark-read-btn').classList.add('hidden');
+                    notificationElement.querySelector('.read-status').innerHTML = '<span class="text-green-600">Read</span>';
+                } else {
+                    alert('Failed to mark notification as read: ' + (data.error || 'Unknown error'));
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while marking the notification as read.');
+            });
         }
     </script>
 </head>
@@ -292,6 +421,12 @@ try {
                                 <button id="orders-btn" onclick="switchTab('orders')" class="tab-button w-full p-3 rounded-lg flex items-center bg-gray-100 text-gray-700 hover:bg-gray-200 transition">
                                     <i class="ri-shopping-bag-line mr-3"></i>
                                     <span>Order History</span>
+                                </button>
+                            </li>
+                            <li>
+                                <button id="notifications-btn" onclick="switchTab('notifications')" class="tab-button w-full p-3 rounded-lg flex items-center bg-gray-100 text-gray-700 hover:bg-gray-200 transition">
+                                    <i class="ri-notification-3-line mr-3"></i>
+                                    <span>Notifications</span>
                                 </button>
                             </li>
                             <li>
@@ -444,6 +579,71 @@ try {
                                     <?php endforeach; ?>
                                 </tbody>
                             </table>
+                        </div>
+                    <?php endif; ?>
+                </section>
+
+                <!-- Notifications Tab -->
+                <section id="notifications" class="tab-content bg-white rounded-xl shadow-sm p-6 hidden">
+                    <h1 class="text-2xl font-heading font-bold text-gray-800 mb-6">Notifications</h1>
+                    <?php if (empty($notifications)): ?>
+                        <div class="text-center py-8">
+                            <div class="mx-auto w-16 h-16 flex items-center justify-center bg-gray-100 rounded-full mb-4">
+                                <i class="ri-notification-3-line text-2xl text-gray-400"></i>
+                            </div>
+                            <h3 class="text-lg font-medium text-gray-700 mb-2">No notifications</h3>
+                            <p class="text-gray-500">You don't have any notifications at the moment.</p>
+                        </div>
+                    <?php else: ?>
+                        <div class="space-y-4 max-h-96 overflow-y-auto">
+                            <?php foreach ($notifications as $notification): ?>
+                                <div id="notification-<?php echo $notification['notification_id']; ?>" 
+                                     class="p-4 rounded-lg border <?php echo $notification['is_read'] ? 'bg-gray-50' : 'bg-blue-50'; ?>">
+                                    <div class="flex justify-between items-start">
+                                        <div>
+                                            <h4 class="font-medium text-gray-800">
+                                                <?php echo htmlspecialchars($notification['title']); ?>
+                                                <span class="ml-2 text-xs px-2 py-1 rounded-full 
+                                                    <?php
+                                                    switch ($notification['notification_type']) {
+                                                        case 'order':
+                                                            echo 'bg-blue-100 text-blue-800';
+                                                            break;
+                                                        case 'promotion':
+                                                            echo 'bg-yellow-100 text-yellow-800';
+                                                            break;
+                                                        case 'system':
+                                                            echo 'bg-gray-100 text-gray-800';
+                                                            break;
+                                                        case 'stock':
+                                                            echo 'bg-red-100 text-red-800';
+                                                            break;
+                                                    }
+                                                    ?>">
+                                                    <?php echo ucfirst(htmlspecialchars($notification['notification_type'])); ?>
+                                                </span>
+                                            </h4>
+                                            <p class="text-sm text-gray-600 mt-1">
+                                                <?php echo htmlspecialchars($notification['message']); ?>
+                                            </p>
+                                            <p class="text-xs text-gray-500 mt-2">
+                                                <?php echo date('M j, Y, h:i A', strtotime($notification['created_at'])); ?>
+                                            </p>
+                                        </div>
+                                        <div class="flex items-center space-x-2">
+                                            <span class="read-status text-sm">
+                                                <?php echo $notification['is_read'] ? '<span class="text-green-600">Read</span>' : '<span class="text-red-600">Unread</span>'; ?>
+                                            </span>
+                                            <?php if (!$notification['is_read']): ?>
+                                                <button onclick="markNotificationAsRead(<?php echo $notification['notification_id']; ?>)"
+                                                        class="mark-read-btn text-primary hover:text-primary-dark text-sm font-medium">
+                                                    Mark as Read
+                                                </button>
+                                            <?php endif; ?>
+                                        </div>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
                         </div>
                     <?php endif; ?>
                 </section>
