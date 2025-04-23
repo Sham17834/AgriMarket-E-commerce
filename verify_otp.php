@@ -75,7 +75,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     <footer class="bg-white py-4 border-t">
         <div class="max-w-7xl mx-auto px-4 text-center text-gray-500 text-sm">
-            © 2025 FreshHarvest. All rights reserved.
+        © 2025 AgriMarket Solutions. All rights reserved.
         </div>
     </footer>
 </body>

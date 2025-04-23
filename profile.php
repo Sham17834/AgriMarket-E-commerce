@@ -772,7 +772,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
             </div>
         </div>
         <div class="mt-12 pt-8 border-t border-white border-opacity-20 text-center">
-            <p class="text-sm">© 2025 AgriMarket. All rights reserved.</p>
+            <p class="text-sm">© 2025 AgriMarket Solutions. All rights reserved.</p>
         </div>
     </div>
 </footer>

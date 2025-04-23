@@ -234,7 +234,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     <footer class="bg-white py-8 border-t border-gray-200">
         <div class="max-w-7xl mx-auto px-4 text-center text-gray-500 text-sm">
-            © 2025 AgriMarket. All rights reserved.
+        © 2025 AgriMarket Solutions. All rights reserved.
         </div>
     </footer>
 
